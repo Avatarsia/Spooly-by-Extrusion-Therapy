@@ -1,0 +1,76 @@
+{
+  "name": "spooly",
+  "version": "0.1.10",
+  "author": "Extrusion Therapy",
+  "description": "A desktop pet that watches your 3D printers.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test test/*.test.js",
+    "pack:mac": "electron-builder --mac dir && zsh scripts/adhoc-sign-mac.sh dist/mac-arm64/Spooly.app",
+    "dist:mac": "electron-builder --mac dir && zsh scripts/adhoc-sign-mac.sh dist/mac-arm64/Spooly.app && electron-builder --mac dmg --prepackaged dist/mac-arm64/Spooly.app",
+    "pack:win": "electron-builder --win portable --x64",
+    "dist:win": "electron-builder --win nsis portable --x64"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.4.3",
+    "electron-store": "^8.2.0",
+    "mqtt": "^5.10.4"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "therapy.extrusion.spooly",
+    "productName": "Spooly",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!assets/experiments/**/*",
+      "!assets/marketing/**/*",
+      "!assets/animation/devil-higgsfield/**/*",
+      "!assets/animation/idle-higgsfield-loop/**/*",
+      "!assets/animation/printing-higgsfield/**/*",
+      "!assets/spooly-bambu-devil-source.png",
+      "!assets/spooly-error-frame-2.png",
+      "!assets/spooly-error-frame-3.png",
+      "!assets/spooly-hover-idle.png",
+      "!assets/spooly-idle.png",
+      "!assets/spooly-idle-blink.png",
+      "!assets/spooly-paused-frame-2.png",
+      "!assets/spooly-printing-frame-2.png",
+      "!assets/spooly-printing-frame-3.png",
+      "!assets/spooly-runout-frame-2.png",
+      "!assets/spooly-runout-frame-3.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "docs",
+        "to": "docs"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "assets/spooly-idle-full.png",
+      "target": "dmg",
+      "identity": null
+    },
+    "dmg": {
+      "title": "Spooly ${version}",
+      "contents": [
+        { "x": 140, "y": 180 },
+        { "x": 500, "y": 180, "type": "link", "path": "/Applications" },
+        { "x": 320, "y": 320, "type": "file", "path": "docs/If macOS blocks Spooly.webloc" }
+      ]
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico"
+    }
+  }
+}

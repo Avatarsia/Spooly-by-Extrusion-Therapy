@@ -1,0 +1,21 @@
+.DS_Store
+.pnpm-store/
+node_modules/
+dist/
+outputs/
+work/
+assets/experiments/
+assets/marketing/
+assets/animation/devil-higgsfield/
+assets/animation/idle-higgsfield-loop/
+assets/animation/printing-higgsfield/
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Local Electron configuration and secrets are stored outside the project,
+# but keep common local overrides out of source control as a safeguard.
+.env
+.env.*
+!.env.example

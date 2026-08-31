@@ -1,0 +1,56 @@
+name: Printer compatibility report
+description: Ask for support or report results for a printer model.
+title: "[Printer]: "
+labels:
+  - compatibility
+body:
+  - type: markdown
+    attributes:
+      value: "Never include an access code, serial number, private IP address, or configuration backup."
+  - type: input
+    id: model
+    attributes:
+      label: Printer manufacturer and model
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection type
+      options:
+        - Bambu local MQTT
+        - Klipper / Moonraker
+        - Unknown
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: discovery
+    attributes:
+      label: Does Scan find the printer?
+      options:
+        - "Yes"
+        - "No"
+        - Not tested
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What works and what does not?
+      description: Include the visible state or error, with all private information removed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed access codes, serial numbers, IP addresses, and other private information.
+          required: true

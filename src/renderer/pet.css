@@ -1,0 +1,24 @@
+:root { color-scheme: dark; --state: #55e8ef; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#stage { position: relative; width: 100%; height: 100%; -webkit-app-region: drag; }
+.pet { -webkit-app-region: no-drag; position: absolute; inset: 27px 20px 8px; border: 0; background: none; padding: 0; cursor: pointer; transform-origin: 50% 92%; }
+.pet:focus { outline: none; }
+.pet img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 5px 2px #0006); }
+.printing { --state: #39e46e; }
+.paused { --state: #ffd84a; }
+.error, .filament_out { --state: #ff4055; }
+.idle { --state: #e8f4f6; }
+.offline { --state: #7e8996; }
+.offline .pet { animation: sleep-breathe 3.4s steps(3) infinite; }
+.idle:not(.dragging) .pet { animation: none; }
+.printing:not(.dragging) .pet { animation: none; }
+.paused:not(.dragging) .pet { animation: none; }
+.filament_out.bouncing:not(.dragging) .pet { animation: none; }
+.dragging .pet { cursor: grabbing; animation: carried-step .46s ease-in-out infinite; }
+@keyframes sleep-breathe { 50% { transform: scale(.985) translateY(2px); } }
+@keyframes ambient-shift { 0%,100% { transform: translateX(-1px) rotate(-.45deg); } 48% { transform: translateX(1.5px) rotate(.45deg); } 56% { transform: translateX(1px) rotate(.2deg); } }
+@keyframes working-sway { 0%,100% { transform: translateX(-1px) rotate(-.6deg); } 50% { transform: translateX(1.5px) translateY(-1px) rotate(.6deg); } }
+@keyframes paused-attention { 0%,100% { transform: translateX(0) rotate(0); } 42% { transform: translateX(-1px) rotate(-.35deg); } 58% { transform: translateX(1px) rotate(.35deg); } }
+@keyframes alert-hop { 0%,20%,100% { transform: translateY(0) scale(1); } 34% { transform: translateY(2px) scale(1.025,.975); } 58% { transform: translateY(-8px) scale(.99,1.02); } 78% { transform: translateY(1px) scale(1.02,.98); } }
+@keyframes carried-step { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-3px) rotate(1deg); } }

@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible Spooly problem.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "Never include an access code, serial number, private IP address, or configuration backup."
+  - type: input
+    id: version
+    attributes:
+      label: Spooly version
+      placeholder: 0.1.10
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - macOS Apple silicon
+        - Windows 11 x64
+        - Windows 10 x64
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Explain what you expected and what Spooly did instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: printer
+    attributes:
+      label: Printer and firmware
+      description: Model, firmware version, and connection type. Redact unique identifiers.
+    validations:
+      required: true
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed access codes, serial numbers, IP addresses, and other private information.
+          required: true
