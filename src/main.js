@@ -9,7 +9,12 @@ const { BambuAdapter } = require('./adapters/bambu');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters } = require('./printers');
-const { clampBoundsToWorkArea, placementForBounds, resolveSavedBounds } = require('./window-placement');
+const {
+  clampBoundsToWorkArea,
+  fixedSizeDragBounds,
+  placementForBounds,
+  resolveSavedBounds,
+} = require('./window-placement');
 const { fleetLayout, isNewAttention } = require('./bubble-policy');
 const { syncLaunchAtLogin } = require('./login-item');
 const { migrateLegacyCredentials, preparePrintersForStorage } = require('./credentials');
@@ -45,6 +50,7 @@ let printerStates = [];
 let acknowledgedKey = null;
 let simulatedPrinters = null;
 let petDrag = null;
+let petSizeLockTimer = null;
 let bubbleHideTimer = null;
 let bubbleHovered = false;
 let petHovered = false;
@@ -347,10 +353,20 @@ function expectedPetSize() {
 function enforcePetWindowSize() {
   if (!petWindow || petWindow.isDestroyed()) return;
   const expected = expectedPetSize();
-  const [width, height] = petWindow.getSize();
-  if (width !== expected || height !== expected) petWindow.setSize(expected, expected, false);
+  const bounds = petWindow.getBounds();
+  if (bounds.width !== expected || bounds.height !== expected) {
+    petWindow.setBounds({ ...bounds, width: expected, height: expected }, false);
+  }
   petWindow.setMinimumSize(expected, expected);
   petWindow.setMaximumSize(expected, expected);
+}
+
+function schedulePetWindowSizeLock() {
+  enforcePetWindowSize();
+  clearTimeout(petSizeLockTimer);
+  // Windows applies per-monitor DPI changes asynchronously. Re-lock after the
+  // move settles so a 125% display cannot add pixels after our drag IPC ends.
+  petSizeLockTimer = setTimeout(enforcePetWindowSize, 150);
 }
 
 function persistPetPlacement() {
@@ -564,23 +580,31 @@ ipcMain.on('pet:preview-scale', (_event, scale) => {
   store.set('scale', persistedScale);
   resizePet(persistedScale);
 });
-ipcMain.on('pet:drag-start', (_event, point) => {
-  if (!petWindow || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-  petDrag = { cursor: point, bounds: petWindow.getBounds() };
+ipcMain.on('pet:drag-start', () => {
+  if (!petWindow) return;
+  petDrag = { cursor: screen.getCursorScreenPoint(), bounds: petWindow.getBounds() };
 });
-ipcMain.on('pet:drag-move', (_event, point) => {
-  if (!petDrag || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-  const proposed = {
-    ...petDrag.bounds,
-    x: Math.round(petDrag.bounds.x + point.x - petDrag.cursor.x),
-    y: Math.round(petDrag.bounds.y + point.y - petDrag.cursor.y),
-  };
+ipcMain.on('pet:drag-move', () => {
+  if (!petDrag || !petWindow || petWindow.isDestroyed()) return;
+  const point = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) });
-  const clamped = clampBoundsToWorkArea(proposed, display.workArea);
-  petWindow.setPosition(clamped.x, clamped.y, false);
-  enforcePetWindowSize();
+  const fixedBounds = fixedSizeDragBounds(
+    petDrag.bounds,
+    petDrag.cursor,
+    point,
+    display.workArea,
+    expectedPetSize(),
+  );
+  // One atomic bounds update avoids Electron's Windows mixed-DPI setPosition
+  // path, which can grow a frameless window by a few pixels per movement.
+  petWindow.setBounds(fixedBounds, false);
+  schedulePetWindowSizeLock();
 });
-ipcMain.on('pet:drag-end', () => { petDrag = null; persistPetPlacement(); });
+ipcMain.on('pet:drag-end', () => {
+  petDrag = null;
+  schedulePetWindowSizeLock();
+  persistPetPlacement();
+});
 ipcMain.on('alert:acknowledge', () => {
   const current = snapshot();
   if (current.source) acknowledgedKey = `${current.source.id}:${current.status}:${current.source.message || ''}`;

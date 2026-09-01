@@ -8,6 +8,15 @@ function clampBoundsToWorkArea(bounds, workArea) {
   };
 }
 
+function fixedSizeDragBounds(startBounds, startCursor, currentCursor, workArea, size) {
+  return clampBoundsToWorkArea({
+    x: Math.round(startBounds.x + currentCursor.x - startCursor.x),
+    y: Math.round(startBounds.y + currentCursor.y - startCursor.y),
+    width: size,
+    height: size,
+  }, workArea);
+}
+
 function placementForBounds(bounds, display) {
   return {
     x: bounds.x,
@@ -46,6 +55,7 @@ function resolveSavedBounds(saved, displays, primaryDisplay, size) {
 module.exports = {
   clampBoundsToWorkArea,
   displayForSavedPlacement,
+  fixedSizeDragBounds,
   placementForBounds,
   resolveSavedBounds,
 };

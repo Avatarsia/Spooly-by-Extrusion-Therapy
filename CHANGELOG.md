@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11
+
+- Fixed mascot size drift while dragging Spooly between Windows displays using different scaling levels.
+- Kept drag movement and window sizing atomic across mixed-DPI monitor transitions.
+- Added regression coverage for repeated 100% to 125% display transitions and display-edge clamping.
+
 ## 0.1.10
 
 - Fixed fleet-state priority so a completed printer takes precedence when another printer is still printing.

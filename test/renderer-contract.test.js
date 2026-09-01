@@ -68,5 +68,7 @@ test('dragging cancels hover scaling and hard-locks the pet window size', () => 
   assert.match(main, /function enforcePetWindowSize\(\)/);
   assert.match(main, /petWindow\.setMinimumSize\(expected, expected\)/);
   assert.match(main, /petWindow\.setMaximumSize\(expected, expected\)/);
-  assert.match(main, /petWindow\.setPosition\(clamped\.x, clamped\.y, false\);\s*enforcePetWindowSize\(\)/);
+  assert.match(main, /screen\.getCursorScreenPoint\(\)/);
+  assert.match(main, /petWindow\.setBounds\(fixedBounds, false\);\s*schedulePetWindowSizeLock\(\)/);
+  assert.doesNotMatch(main, /petWindow\.setPosition\(clamped\.x, clamped\.y, false\)/);
 });

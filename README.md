@@ -24,7 +24,7 @@
 
 Spooly is free. Downloads are never gated behind payment. You can also browse the [latest GitHub release](../../releases/latest).
 
-> **Installation note:** Version 0.1.10 is not signed with an Apple Developer ID or a Microsoft code-signing certificate. macOS Gatekeeper or Windows SmartScreen may ask you to confirm that you want to run it. See the [macOS installation guide](docs/MAC_BETA_INSTALL.md).
+> **Installation note:** Version 0.1.11 is not signed with an Apple Developer ID or a Microsoft code-signing certificate. macOS Gatekeeper or Windows SmartScreen may ask you to confirm that you want to run it. See the [macOS installation guide](docs/MAC_BETA_INSTALL.md).
 
 ## See your printers without keeping every slicer open
 

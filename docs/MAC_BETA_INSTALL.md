@@ -1,6 +1,6 @@
 # Installing Spooly on macOS
 
-Spooly 0.1.10 has an ad-hoc integrity signature, but it is not signed with an Apple Developer ID or notarized by Apple. macOS may warn that it cannot verify the developer.
+Spooly 0.1.11 has an ad-hoc integrity signature, but it is not signed with an Apple Developer ID or notarized by Apple. macOS may warn that it cannot verify the developer.
 
 1. Open the Spooly DMG and drag Spooly into Applications.
 2. Open Spooly from Applications once. Dismiss the macOS warning.
