@@ -6,8 +6,8 @@
 
 [![Spooly watching multiple 3D printers](docs/assets/spooly-hero.jpg)](https://extrusiontherapy.com)
 
-[![Download for macOS](https://img.shields.io/badge/Download-macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/rdcstout/Spooly/releases/download/v0.1.10/Spooly-0.1.10-macOS-arm64.dmg)
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/rdcstout/Spooly/releases/download/v0.1.10/Spooly-Setup-0.1.10-Windows-x64.exe)
+[![Download for macOS](https://img.shields.io/badge/Download-macOS-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/rdcstout/Spooly/releases/latest/download/Spooly-macOS-arm64.dmg)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/rdcstout/Spooly/releases/latest/download/Spooly-Setup-Windows-x64.exe)
 
 [![Latest release](https://img.shields.io/github/v/release/rdcstout/Spooly?style=flat-square&label=latest%20release)](../../releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)](LICENSE)
@@ -19,8 +19,8 @@
 
 | Platform | System | Installer |
 | --- | --- | --- |
-| **macOS** | Apple silicon | **[Download `.dmg`](https://github.com/rdcstout/Spooly/releases/download/v0.1.10/Spooly-0.1.10-macOS-arm64.dmg)** |
-| **Windows** | 64-bit | **[Download installer `.exe`](https://github.com/rdcstout/Spooly/releases/download/v0.1.10/Spooly-Setup-0.1.10-Windows-x64.exe)** |
+| **macOS** | Apple silicon | **[Download `.dmg`](https://github.com/rdcstout/Spooly/releases/latest/download/Spooly-macOS-arm64.dmg)** |
+| **Windows** | 64-bit | **[Download installer `.exe`](https://github.com/rdcstout/Spooly/releases/latest/download/Spooly-Setup-Windows-x64.exe)** |
 
 Spooly is free. Downloads are never gated behind payment. You can also browse the [latest GitHub release](../../releases/latest).
 
