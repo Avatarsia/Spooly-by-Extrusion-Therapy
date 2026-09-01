@@ -22,6 +22,12 @@ If discovery is blocked by guest Wi-Fi, VLAN isolation, a VPN, or a firewall, en
 
 Then click **Save & connect**.
 
+## Snapmaker U1 with Paxx12 firmware
+
+Paxx12 firmware can require a login for Moonraker API access. If Spooly reports `Moonraker returned 401`, open `http://<printer-ip>/firmware-config/` and disable **Require Login** under the web settings, then reconnect Spooly.
+
+The current Spooly release does not yet support authenticated Moonraker connections. Optional Moonraker API-key support is planned for a future update for users who prefer to keep **Require Login** enabled.
+
 ## If Spooly cannot connect
 
 1. Confirm the printer's Moonraker web interface is reachable from the same computer.
