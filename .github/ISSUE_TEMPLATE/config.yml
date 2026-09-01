@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Private security report
-    url: https://github.com/rdcstout/Spooly/security/advisories/new
+    url: https://github.com/rdcstout/Spooly-by-Extrusion-Therapy/security/advisories/new
     about: Report a suspected vulnerability privately. Never include printer credentials in a public issue.
