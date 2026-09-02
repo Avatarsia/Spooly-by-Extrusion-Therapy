@@ -1,6 +1,6 @@
 {
   "name": "spooly",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "author": "Extrusion Therapy",
   "description": "A desktop pet that watches your 3D printers.",
   "main": "src/main.js",
@@ -67,8 +67,8 @@
     "dmg": {
       "title": "Spooly ${version}",
       "contents": [
-        { "x": 140, "y": 180 },
-        { "x": 500, "y": 180, "type": "link", "path": "/Applications" }
+        { "x": 130, "y": 180 },
+        { "x": 410, "y": 180, "type": "link", "path": "/Applications" }
       ]
     },
     "win": {

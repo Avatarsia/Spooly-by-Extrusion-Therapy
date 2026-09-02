@@ -3,7 +3,7 @@ const ATTENTION_STATUSES = new Set(['paused', 'filament_out', 'error']);
 function fleetLayout(count = 0) {
   const total = Math.max(0, Number(count) || 0);
   if (!total) return { columns: 1, rows: 1 };
-  const columns = Math.min(3, Math.max(1, Math.ceil(total / 3)));
+  const columns = Math.min(3, Math.max(1, Math.ceil(total / 4)));
   return { columns, rows: Math.ceil(total / columns) };
 }
 

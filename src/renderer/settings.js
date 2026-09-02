@@ -153,6 +153,31 @@ function readPrinters() {
 
 document.querySelector('#add').addEventListener('click', () => addPrinter({}, { prepend: true, focus: true }));
 document.querySelector('#credit').addEventListener('click', () => window.spooly.openExtrusionTherapy());
+document.querySelector('#checkUpdates').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const status = document.querySelector('#updateStatus');
+  button.disabled = true;
+  status.replaceChildren();
+  status.textContent = 'Checking GitHub…';
+  try {
+    const result = await window.spooly.checkForUpdates();
+    if (!result.updateAvailable) {
+      status.textContent = `You’re up to date — version ${result.current}.`;
+      return;
+    }
+    status.textContent = `Version ${result.latest} is available. `;
+    const download = document.createElement('button');
+    download.type = 'button';
+    download.className = 'link-button';
+    download.textContent = 'View download';
+    download.addEventListener('click', () => window.spooly.openRelease(result.releaseUrl));
+    status.append(download);
+  } catch (_) {
+    status.textContent = 'Could not reach GitHub. Try again later.';
+  } finally {
+    button.disabled = false;
+  }
+});
 document.querySelector('#exportConfig').addEventListener('click', async () => {
   const saved = document.querySelector('#saved');
   try {

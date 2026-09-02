@@ -1,7 +1,7 @@
 const path = require('path');
 const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
 const { MoonrakerAdapter } = require('./adapters/moonraker');
@@ -16,8 +16,13 @@ const {
   resolveSavedBounds,
 } = require('./window-placement');
 const { fleetLayout, isNewAttention } = require('./bubble-policy');
+const { clampScale, scaledSize, topRightResize } = require('./bubble-resize');
 const { syncLaunchAtLogin } = require('./login-item');
 const { migrateLegacyCredentials, preparePrintersForStorage } = require('./credentials');
+const { compareVersions } = require('./update-check');
+
+const RELEASES_API = 'https://api.github.com/repos/rdcstout/Spooly-by-Extrusion-Therapy/releases/latest';
+const RELEASES_PAGE_PREFIX = 'https://github.com/rdcstout/Spooly-by-Extrusion-Therapy/releases/';
 
 // Keep development builds, packaged betas, upgrades, and reinstalls on one
 // stable configuration path. Removing Spooly.app does not remove this folder.
@@ -27,7 +32,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 const store = new Store({
-  defaults: { printers: [], scale: 1, onboarded: false, window: null, launchAtLogin: true },
+  defaults: { printers: [], scale: 1, bubbleScale: 1, onboarded: false, window: null, launchAtLogin: true },
 });
 
 function enforceStorePermissions() {
@@ -54,6 +59,10 @@ let petSizeLockTimer = null;
 let bubbleHideTimer = null;
 let bubbleHovered = false;
 let petHovered = false;
+let bubbleNaturalSize = null;
+let bubbleResize = null;
+let bubbleResizeTimer = null;
+let bubbleResizePoint = null;
 const previewDevil = process.argv.includes('--dev') && process.argv.includes('--preview-devil');
 const previewPaused = process.argv.includes('--dev') && process.argv.includes('--preview-paused');
 const previewComplete = process.argv.includes('--dev') && process.argv.includes('--preview-complete');
@@ -167,12 +176,13 @@ function broadcast() {
 
 function positionBubble(current = snapshot()) {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !petWindow) return;
+  if (bubbleResize) return;
   const petBounds = petWindow.getBounds();
   const workArea = screen.getDisplayMatching(petBounds).workArea;
   const layout = fleetLayout(current.printers.length);
   // Telemetry wraps by whole readings so every fan remains visible.
   const rowHeight = 94;
-  const height = Math.min(workArea.height - 12, Math.max(108, 42 + layout.rows * rowHeight));
+  const naturalHeight = Math.min(workArea.height - 12, Math.max(108, 42 + layout.rows * rowHeight));
   const statusLabel = (status) => ({ filament_out: 'FILAMENT OUT' })[status] || String(status || '').toUpperCase();
   const numeric = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const telemetryLength = (printer) => {
@@ -198,7 +208,15 @@ function positionBubble(current = snapshot()) {
   // Size for the complete telemetry line, including every reported fan. Only
   // screens too narrow for that width fall back to whole-token wrapping.
   const columnWidth = Math.min(540, Math.max(320, Math.ceil(contentLength * 6.45 + 68)));
-  const width = Math.min(workArea.width - 12, Math.max(172, layout.columns * columnWidth + (layout.columns - 1) * 15 + 32));
+  const naturalWidth = Math.min(workArea.width - 12, Math.max(172, layout.columns * columnWidth + (layout.columns - 1) * 15 + 32));
+  bubbleNaturalSize = { width: naturalWidth, height: naturalHeight };
+  const maximumScale = Math.max(0.65, Math.min(
+    1.6,
+    (workArea.width - 12) / naturalWidth,
+    (workArea.height - 12) / naturalHeight,
+  ));
+  const bubbleScale = clampScale(store.get('bubbleScale'), 0.65, maximumScale);
+  const { width, height } = scaledSize(bubbleNaturalSize, bubbleScale);
   const rightX = petBounds.x + Math.round(petBounds.width * 0.6);
   const fitsRight = rightX + width <= workArea.x + workArea.width;
   const leftX = petBounds.x - width + Math.round(petBounds.width * 0.4);
@@ -210,8 +228,9 @@ function positionBubble(current = snapshot()) {
     petBounds.y - height + 35,
     workArea.y + workArea.height - height,
   ));
+  bubbleWindow.webContents.setZoomFactor(bubbleScale);
   bubbleWindow.setBounds({ x, y, width, height }, false);
-  bubbleWindow.webContents.send('bubble:update', { snapshot: current, side, layout });
+  bubbleWindow.webContents.send('bubble:update', { snapshot: current, side, layout, bubbleScale });
 }
 
 function updateBubble(current = snapshot()) {
@@ -239,7 +258,7 @@ function toggleBubble() {
   showBubble();
 }
 
-function scheduleBubbleHide(delay = 3500) {
+function scheduleBubbleHide(delay = 1500) {
   clearTimeout(bubbleHideTimer);
   if (bubbleHovered || petHovered) return;
   bubbleHideTimer = setTimeout(() => hideBubble(), delay);
@@ -561,6 +580,27 @@ ipcMain.handle('settings:save', async (_event, settings) => {
   await configureAdapters(newPrinterIds);
   return true;
 });
+ipcMain.handle('update:check', async () => {
+  const response = await net.fetch(RELEASES_API, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (!response.ok) throw new Error(`GitHub returned ${response.status}.`);
+  const release = await response.json();
+  const current = app.getVersion();
+  const latest = String(release.tag_name || '').replace(/^v/i, '');
+  const updateAvailable = compareVersions(latest, current) > 0;
+  const releaseUrl = String(release.html_url || '');
+  return {
+    current,
+    latest,
+    updateAvailable,
+    releaseUrl: releaseUrl.startsWith(RELEASES_PAGE_PREFIX) ? releaseUrl : `${RELEASES_PAGE_PREFIX}latest`,
+  };
+});
+ipcMain.on('update:open-release', (_event, url) => {
+  const releaseUrl = String(url || '');
+  if (releaseUrl.startsWith(RELEASES_PAGE_PREFIX)) shell.openExternal(releaseUrl);
+});
 ipcMain.on('settings:open', openSettings);
 ipcMain.on('external:extrusion-therapy', () => shell.openExternal('https://extrusiontherapy.com'));
 ipcMain.on('bubble:toggle', toggleBubble);
@@ -569,6 +609,56 @@ ipcMain.on('bubble:hover', (_event, hovered) => {
   bubbleHovered = Boolean(hovered);
   if (bubbleHovered) clearTimeout(bubbleHideTimer);
   else scheduleBubbleHide();
+});
+ipcMain.on('bubble:resize-start', () => {
+  if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleNaturalSize) return;
+  bubbleHovered = true;
+  clearTimeout(bubbleHideTimer);
+  const bounds = bubbleWindow.getBounds();
+  const workArea = screen.getDisplayMatching(bounds).workArea;
+  bubbleResize = {
+    cursor: screen.getCursorScreenPoint(),
+    bounds,
+    baseSize: { ...bubbleNaturalSize },
+    maximumScale: Math.max(0.65, Math.min(
+      1.6,
+      (workArea.width - 12) / bubbleNaturalSize.width,
+      (workArea.height - 12) / bubbleNaturalSize.height,
+    )),
+    scale: clampScale(store.get('bubbleScale')),
+  };
+  bubbleResizePoint = bubbleResize.cursor;
+});
+function applyBubbleResize() {
+  bubbleResizeTimer = null;
+  if (!bubbleResize || !bubbleWindow || bubbleWindow.isDestroyed()) return;
+  const result = topRightResize({
+    startCursor: bubbleResize.cursor,
+    startBounds: bubbleResize.bounds,
+    point: bubbleResizePoint || screen.getCursorScreenPoint(),
+    baseSize: bubbleResize.baseSize,
+    maximum: bubbleResize.maximumScale,
+  });
+  bubbleResize.scale = result.scale;
+  bubbleWindow.setBounds(result.bounds, false);
+  bubbleWindow.webContents.setZoomFactor(result.scale);
+}
+ipcMain.on('bubble:resize-move', () => {
+  if (!bubbleResize || !bubbleWindow || bubbleWindow.isDestroyed()) return;
+  bubbleResizePoint = screen.getCursorScreenPoint();
+  if (!bubbleResizeTimer) bubbleResizeTimer = setTimeout(applyBubbleResize, 16);
+});
+ipcMain.on('bubble:resize-end', () => {
+  if (!bubbleResize) return;
+  bubbleResizePoint = screen.getCursorScreenPoint();
+  clearTimeout(bubbleResizeTimer);
+  applyBubbleResize();
+  store.set('bubbleScale', bubbleResize.scale);
+  bubbleResize = null;
+  bubbleResizePoint = null;
+  bubbleHovered = false;
+  positionBubble(snapshot());
+  scheduleBubbleHide();
 });
 ipcMain.on('pet:hover', (_event, hovered) => {
   petHovered = Boolean(hovered);

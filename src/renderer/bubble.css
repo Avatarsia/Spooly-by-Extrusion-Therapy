@@ -24,3 +24,6 @@ body.left { padding: 10px 16px 22px 10px; }
 .telemetry .nozzle { color: #ff6b45; }
 .telemetry .bed { color: #f2c94c; }
 .telemetry .fans { color: #38cbea; }
+.resize-handle { position: fixed; z-index: 5; top: 11px; right: 11px; width: 19px; height: 19px; padding: 0; border: 0; outline: none; border-radius: 0 13px 0 0; background: repeating-linear-gradient(135deg, transparent 0 4px, #657174 4px 6px); opacity: .7; cursor: nesw-resize; touch-action: none; }
+.resize-handle:hover, .resize-handle:active { opacity: 1; }
+.resize-handle:focus { outline: none; }

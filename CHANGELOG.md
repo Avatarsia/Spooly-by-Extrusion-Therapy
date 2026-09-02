@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.13
+
+- Added proportional resizing for the printer-status popup, including remembered size and multi-monitor placement.
+- Changed fleet layout to fill up to four printer rows before adding another column.
+- Reduced the popup's mouse-away close delay to 1.5 seconds.
+- Added a manual Check for updates button in Setup.
+- Adjusted the macOS installer layout so the Applications shortcut remains fully visible.
+
 ## 0.1.12
 
 - Replaced ad-hoc macOS signing with an Apple Developer ID signature.

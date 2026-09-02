@@ -72,3 +72,35 @@ test('dragging cancels hover scaling and hard-locks the pet window size', () => 
   assert.match(main, /petWindow\.setBounds\(fixedBounds, false\);\s*schedulePetWindowSizeLock\(\)/);
   assert.doesNotMatch(main, /petWindow\.setPosition\(clamped\.x, clamped\.y, false\)/);
 });
+
+test('printer popup exposes proportional resizing and closes 1.5 seconds after mouse-away', () => {
+  const main = source('src/main.js');
+  const preload = source('src/preload.js');
+  const bubble = source('src/renderer/bubble.js');
+  assert.match(main, /function scheduleBubbleHide\(delay = 1500\)/);
+  assert.match(main, /ipcMain\.on\('bubble:resize-start'/);
+  assert.match(main, /ipcMain\.on\('bubble:resize-move'/);
+  assert.match(main, /ipcMain\.on\('bubble:resize-end'/);
+  assert.match(preload, /beginBubbleResize/);
+  assert.match(bubble, /resizeHandle\.addEventListener\('pointerdown'/);
+});
+
+test('setup exposes a manual-only GitHub update check', () => {
+  const main = source('src/main.js');
+  const preload = source('src/preload.js');
+  const html = source('src/renderer/settings.html');
+  const settings = source('src/renderer/settings.js');
+  assert.match(main, /ipcMain\.handle\('update:check'/);
+  assert.match(preload, /checkForUpdates/);
+  assert.match(html, /id="checkUpdates"/);
+  assert.match(html, /only contacts GitHub when you press the button/);
+  assert.match(settings, /#checkUpdates/);
+});
+
+test('DMG icons fit inside the configured installer window', () => {
+  const packageJson = require('../package.json');
+  assert.deepEqual(packageJson.build.dmg.contents, [
+    { x: 130, y: 180 },
+    { x: 410, y: 180, type: 'link', path: '/Applications' },
+  ]);
+});

@@ -1,4 +1,6 @@
 const bubble = document.querySelector('#bubble');
+const resizeHandle = document.querySelector('#resizeHandle');
+let resizing = false;
 
 function escapeHtml(value = '') {
   const node = document.createElement('span');
@@ -71,3 +73,28 @@ window.spooly.onBubbleUpdate(({ snapshot, side, layout }) => {
 
 bubble.addEventListener('mouseenter', () => window.spooly.setBubbleHovered(true));
 bubble.addEventListener('mouseleave', () => window.spooly.setBubbleHovered(false));
+
+resizeHandle.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  resizing = true;
+  resizeHandle.setPointerCapture(event.pointerId);
+  window.spooly.beginBubbleResize();
+  event.preventDefault();
+});
+
+resizeHandle.addEventListener('pointermove', (event) => {
+  if (!resizing) return;
+  window.spooly.moveBubbleResize();
+  event.preventDefault();
+});
+
+function finishResize(event) {
+  if (!resizing) return;
+  resizing = false;
+  if (resizeHandle.hasPointerCapture(event.pointerId)) resizeHandle.releasePointerCapture(event.pointerId);
+  window.spooly.endBubbleResize();
+  event.preventDefault();
+}
+
+resizeHandle.addEventListener('pointerup', finishResize);
+resizeHandle.addEventListener('pointercancel', finishResize);

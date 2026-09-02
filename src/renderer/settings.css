@@ -53,3 +53,6 @@ dialog li { margin-bottom: 12px; line-height: 1.4; }
 #credit { padding: 0; border: 0; background: transparent; color: #82969a; font-size: 10px; white-space: nowrap; }
 #credit:hover { color: #54e4ea; text-decoration: underline; }
 .backup-actions { display: flex; gap: 7px; margin-top: 12px; }
+.update-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+#updateStatus { color: #9fb2b6; font-size: 12px; }
+.link-button { padding: 0; border: 0; background: transparent; color: #54e4ea; text-decoration: underline; }
