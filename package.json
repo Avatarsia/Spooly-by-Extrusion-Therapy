@@ -1,6 +1,6 @@
 {
   "name": "spooly",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "author": "Extrusion Therapy",
   "description": "A desktop pet that watches your 3D printers.",
   "main": "src/main.js",
@@ -9,8 +9,8 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "test": "node --test test/*.test.js",
-    "pack:mac": "electron-builder --mac dir && zsh scripts/adhoc-sign-mac.sh dist/mac-arm64/Spooly.app",
-    "dist:mac": "electron-builder --mac dir && zsh scripts/adhoc-sign-mac.sh dist/mac-arm64/Spooly.app && electron-builder --mac dmg --prepackaged dist/mac-arm64/Spooly.app",
+    "pack:mac": "electron-builder --mac dir --arm64",
+    "dist:mac": "zsh scripts/build-release-mac.sh",
     "pack:win": "electron-builder --win portable --x64",
     "dist:win": "electron-builder --win nsis portable --x64"
   },
@@ -58,14 +58,17 @@
       "category": "public.app-category.utilities",
       "icon": "assets/spooly-idle-full.png",
       "target": "dmg",
-      "identity": null
+      "identity": "Roger Stout (W3WPVL2V32)",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "Spooly ${version}",
       "contents": [
         { "x": 140, "y": 180 },
-        { "x": 500, "y": 180, "type": "link", "path": "/Applications" },
-        { "x": 320, "y": 320, "type": "file", "path": "docs/If macOS blocks Spooly.webloc" }
+        { "x": 500, "y": 180, "type": "link", "path": "/Applications" }
       ]
     },
     "win": {

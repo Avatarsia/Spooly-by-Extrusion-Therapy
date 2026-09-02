@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.12
+
+- Replaced ad-hoc macOS signing with an Apple Developer ID signature.
+- Enabled the hardened runtime required by Apple's notarization service.
+- Added notarization, ticket stapling, and Gatekeeper verification to the macOS release pipeline.
+- Removed the obsolete macOS Security Settings workaround from the signed installer.
+
 ## 0.1.11
 
 - Fixed mascot size drift while dragging Spooly between Windows displays using different scaling levels.
