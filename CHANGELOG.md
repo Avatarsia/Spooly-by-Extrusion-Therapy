@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14
+
+- Fixed a white background appearing around Spooly at the smallest size on some standard-DPI displays.
+
 ## 0.1.13
 
 - Added proportional resizing for the printer-status popup, including remembered size and multi-monitor placement.

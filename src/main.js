@@ -299,6 +299,7 @@ function createPetWindow() {
     x: initialBounds?.x,
     y: initialBounds?.y,
     transparent: true,
+    backgroundColor: '#00000000',
     frame: false,
     resizable: false,
     alwaysOnTop: true,

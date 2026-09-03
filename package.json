@@ -1,6 +1,6 @@
 {
   "name": "spooly",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "author": "Extrusion Therapy",
   "description": "A desktop pet that watches your 3D printers.",
   "main": "src/main.js",
@@ -20,7 +20,7 @@
     "mqtt": "^5.10.4"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
+    "electron": "43.2.0",
     "electron-builder": "^25.1.8"
   },
   "build": {

@@ -9,6 +9,11 @@ test('preserves the mascot focus-ring suppression', () => {
   assert.match(source('src/renderer/pet.css'), /\.pet:focus\s*\{\s*outline:\s*none;/);
 });
 
+test('keeps the mascot native window backing transparent', () => {
+  const main = source('src/main.js');
+  assert.match(main, /transparent:\s*true,\s*backgroundColor:\s*'#00000000'/);
+});
+
 test('colors each printer status and telemetry category independently', () => {
   const script = source('src/renderer/bubble.js');
   const styles = source('src/renderer/bubble.css');
