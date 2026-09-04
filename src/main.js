@@ -15,7 +15,7 @@ const {
   placementForBounds,
   resolveSavedBounds,
 } = require('./window-placement');
-const { fleetLayout, isNewAttention } = require('./bubble-policy');
+const { fleetLayout, isNewAttention, groupPrinters } = require('./bubble-policy');
 const { clampScale, scaledSize, topRightResize } = require('./bubble-resize');
 const { syncLaunchAtLogin } = require('./login-item');
 const { migrateLegacyCredentials, preparePrintersForStorage } = require('./credentials');
@@ -179,10 +179,15 @@ function positionBubble(current = snapshot()) {
   if (bubbleResize) return;
   const petBounds = petWindow.getBounds();
   const workArea = screen.getDisplayMatching(petBounds).workArea;
-  const layout = fleetLayout(current.printers.length);
+  const grouped = groupPrinters(current.printers);
+  const restLayout = fleetLayout(grouped.rest.length);
+  const attentionRows = grouped.attention.length;
+  const layout = { ...restLayout, attentionRows };
   // Telemetry wraps by whole readings so every fan remains visible.
   const rowHeight = 94;
-  const naturalHeight = Math.min(workArea.height - 12, Math.max(108, 42 + layout.rows * rowHeight));
+  const restRows = grouped.rest.length ? restLayout.rows : 0;
+  const blockGap = attentionRows > 0 && restRows > 0 ? 12 : 0;
+  const naturalHeight = Math.max(108, 42 + attentionRows * rowHeight + blockGap + restRows * rowHeight);
   const statusLabel = (status) => ({ filament_out: 'FILAMENT OUT' })[status] || String(status || '').toUpperCase();
   const numeric = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const telemetryLength = (printer) => {
@@ -210,13 +215,24 @@ function positionBubble(current = snapshot()) {
   const columnWidth = Math.min(540, Math.max(320, Math.ceil(contentLength * 6.45 + 68)));
   const naturalWidth = Math.min(workArea.width - 12, Math.max(172, layout.columns * columnWidth + (layout.columns - 1) * 15 + 32));
   bubbleNaturalSize = { width: naturalWidth, height: naturalHeight };
+  // naturalHeight is no longer capped to the screen, so tall fleets scroll
+  // instead of being zoomed down to fit. If we let the height term shrink
+  // maximumScale whenever content is tall, that zoom-to-fit would come back
+  // through the back door. So the height term may only pull maximumScale
+  // down when the content already fits vertically; once it overflows,
+  // scrolling owns the overflow and only the width term can limit scale.
+  const heightScaleLimit = naturalHeight <= workArea.height - 12
+    ? (workArea.height - 12) / naturalHeight
+    : Infinity;
   const maximumScale = Math.max(0.65, Math.min(
     1.6,
     (workArea.width - 12) / naturalWidth,
-    (workArea.height - 12) / naturalHeight,
+    heightScaleLimit,
   ));
   const bubbleScale = clampScale(store.get('bubbleScale'), 0.65, maximumScale);
-  const { width, height } = scaledSize(bubbleNaturalSize, bubbleScale);
+  const scaled = scaledSize(bubbleNaturalSize, bubbleScale);
+  const width = scaled.width;
+  const height = Math.min(scaled.height, workArea.height - 12);
   const rightX = petBounds.x + Math.round(petBounds.width * 0.6);
   const fitsRight = rightX + width <= workArea.x + workArea.width;
   const leftX = petBounds.x - width + Math.round(petBounds.width * 0.4);
@@ -230,7 +246,14 @@ function positionBubble(current = snapshot()) {
   ));
   bubbleWindow.webContents.setZoomFactor(bubbleScale);
   bubbleWindow.setBounds({ x, y, width, height }, false);
-  bubbleWindow.webContents.send('bubble:update', { snapshot: current, side, layout, bubbleScale });
+  bubbleWindow.webContents.send('bubble:update', {
+    snapshot: current,
+    attention: grouped.attention,
+    rest: grouped.rest,
+    side,
+    layout,
+    bubbleScale,
+  });
 }
 
 function updateBubble(current = snapshot()) {

@@ -42,33 +42,40 @@ function progressBar(printer) {
   return `<span class="progress ${kind}" aria-hidden="true"><i style="width:${value}%"></i></span>`;
 }
 
-window.spooly.onBubbleUpdate(({ snapshot, side, layout }) => {
+function renderRow(printer) {
+  // Keep idle telemetry clean and consistent. During an active or paused job,
+  // show measured/target temperatures for every printer that supplies them.
+  const showTargets = ['printing', 'paused'].includes(printer.status);
+  const nozzle = temperature(printer.nozzleTemp, showTargets ? printer.nozzleTarget : null);
+  const bed = temperature(printer.bedTemp, showTargets ? printer.bedTarget : null);
+  const fans = fanStatuses(printer.fans);
+  const telemetryItems = [
+    nozzle && `<span class="nozzle">NOZZLE ${escapeHtml(nozzle)}</span>`,
+    bed && `<span class="bed">BED ${escapeHtml(bed)}</span>`,
+    ...fans.map((fan) => `<span class="fans">${escapeHtml(fan)}</span>`),
+  ].filter(Boolean);
+  const telemetry = telemetryItems.length
+    ? `<span class="telemetry">${telemetryItems.join('')}</span>`
+    : '';
+  const statusKind = printer.attention?.type === 'stopped' ? 'stopped' : printer.status;
+  return `<div class="row"><strong>${escapeHtml(printer.name)}</strong><span class="status ${escapeHtml(statusKind)}">${escapeHtml(label(printer))}</span>
+    ${(printer.message || printer.attention?.message) ? `<span class="message">${escapeHtml(printer.message || printer.attention.message)}</span>` : ''}${progressBar(printer)}${telemetry}</div>`;
+}
+
+window.spooly.onBubbleUpdate(({ attention, rest, side, layout }) => {
   document.body.className = side;
-  bubble.style.setProperty('--columns', layout.columns);
-  bubble.style.setProperty('--rows', layout.rows);
-  if (!snapshot.printers.length) {
+  if (!attention.length && !rest.length) {
     bubble.innerHTML = '<strong>Time for some extrusion therapy?</strong><br>Let’s add your first printer.';
     return;
   }
-  bubble.innerHTML = snapshot.printers.map((printer) => {
-    // Keep idle telemetry clean and consistent. During an active or paused job,
-    // show measured/target temperatures for every printer that supplies them.
-    const showTargets = ['printing', 'paused'].includes(printer.status);
-    const nozzle = temperature(printer.nozzleTemp, showTargets ? printer.nozzleTarget : null);
-    const bed = temperature(printer.bedTemp, showTargets ? printer.bedTarget : null);
-    const fans = fanStatuses(printer.fans);
-    const telemetryItems = [
-      nozzle && `<span class="nozzle">NOZZLE ${escapeHtml(nozzle)}</span>`,
-      bed && `<span class="bed">BED ${escapeHtml(bed)}</span>`,
-      ...fans.map((fan) => `<span class="fans">${escapeHtml(fan)}</span>`),
-    ].filter(Boolean);
-    const telemetry = telemetryItems.length
-      ? `<span class="telemetry">${telemetryItems.join('')}</span>`
-      : '';
-    const statusKind = printer.attention?.type === 'stopped' ? 'stopped' : printer.status;
-    return `<div class="row"><strong>${escapeHtml(printer.name)}</strong><span class="status ${escapeHtml(statusKind)}">${escapeHtml(label(printer))}</span>
-      ${(printer.message || printer.attention?.message) ? `<span class="message">${escapeHtml(printer.message || printer.attention.message)}</span>` : ''}${progressBar(printer)}${telemetry}</div>`;
-  }).join('');
+  const errorsBlock = attention.length ? `<div class="bubble-errors">${attention.map(renderRow).join('')}</div>` : '';
+  const restBlock = rest.length ? `<div class="bubble-rest">${rest.map(renderRow).join('')}</div>` : '';
+  bubble.innerHTML = errorsBlock + restBlock;
+  const restEl = bubble.querySelector('.bubble-rest');
+  if (restEl) {
+    restEl.style.setProperty('--columns', layout.columns);
+    restEl.style.setProperty('--rows', layout.rows);
+  }
 });
 
 bubble.addEventListener('mouseenter', () => window.spooly.setBubbleHovered(true));
