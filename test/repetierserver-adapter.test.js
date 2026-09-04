@@ -79,8 +79,10 @@ test('reports error when a Repetier-Server heater error code is set', () => {
 test('read() fetches the Repetier-Server printer list and state endpoints and normalizes them', async () => {
   const originalFetch = global.fetch;
   const requestedUrls = [];
-  global.fetch = async (url) => {
+  const requestedOptions = [];
+  global.fetch = async (url, options) => {
     requestedUrls.push(url);
+    requestedOptions.push(options);
     if (url.includes('/printer/list')) {
       return {
         ok: true,
@@ -106,14 +108,65 @@ test('read() fetches the Repetier-Server printer list and state endpoints and no
   try {
     const adapter = new RepetierServerAdapter({ id: 'ender3', name: 'Ender 3', host: '192.168.5.30', slug: 'ender3', apiKey: 'abc123' });
     const state = await adapter.read();
-    assert.equal(requestedUrls[0], 'http://192.168.5.30:3344/printer/list?apikey=abc123');
-    assert.equal(requestedUrls[1], 'http://192.168.5.30:3344/printer/api/ender3?a=stateList&apikey=abc123');
+    assert.equal(requestedUrls[0], 'http://192.168.5.30:3344/printer/list');
+    assert.equal(requestedUrls[1], 'http://192.168.5.30:3344/printer/api/ender3?a=stateList');
+    assert.deepEqual(requestedOptions[0].headers, { 'X-Api-Key': 'abc123' });
+    assert.deepEqual(requestedOptions[1].headers, { 'X-Api-Key': 'abc123' });
     assert.equal(state.status, 'printing');
     assert.equal(state.filename, 'vase.gcode');
     assert.equal(state.progress, 50);
     assert.equal(state.nozzleTemp, 210);
     assert.equal(state.bedTemp, 60);
     assert.deepEqual(state.fans, [{ key: 'fan0', label: 'FAN 0', on: true }]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('read() omits the X-Api-Key header when no apiKey is configured', async () => {
+  const originalFetch = global.fetch;
+  const requestedOptions = [];
+  global.fetch = async (url, options) => {
+    requestedOptions.push(options);
+    if (url.includes('/printer/list')) return { ok: true, json: async () => ({ data: [] }) };
+    return { ok: true, json: async () => ({}) };
+  };
+  try {
+    const adapter = new RepetierServerAdapter({ id: 'ender3', name: 'Ender 3', host: '192.168.5.30', slug: 'ender3' });
+    await adapter.read();
+    assert.deepEqual(requestedOptions[0].headers, {});
+    assert.deepEqual(requestedOptions[1].headers, {});
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('listPrinters() returns normalized slug/name pairs from /printer/list', async () => {
+  const originalFetch = global.fetch;
+  const requestedUrls = [];
+  const requestedOptions = [];
+  global.fetch = async (url, options) => {
+    requestedUrls.push(url);
+    requestedOptions.push(options);
+    return {
+      ok: true,
+      json: async () => ({
+        data: [
+          { slug: 'ender3', name: 'Ender 3', online: 1 },
+          { slug: 'voron', name: '', online: 0 },
+        ],
+      }),
+    };
+  };
+  try {
+    const adapter = new RepetierServerAdapter({ id: 'x', name: 'X', host: '192.168.5.30', apiKey: 'abc123' });
+    const printers = await adapter.listPrinters();
+    assert.equal(requestedUrls[0], 'http://192.168.5.30:3344/printer/list');
+    assert.deepEqual(requestedOptions[0].headers, { 'X-Api-Key': 'abc123' });
+    assert.deepEqual(printers, [
+      { slug: 'ender3', name: 'Ender 3' },
+      { slug: 'voron', name: 'voron' },
+    ]);
   } finally {
     global.fetch = originalFetch;
   }

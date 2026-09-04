@@ -8,6 +8,7 @@ const { ADAPTER_REGISTRY, createAdapter, adapterMode } = require('./adapter-regi
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters } = require('./printers');
+const { formatAdapterError } = require('./adapter-errors');
 const {
   clampBoundsToWorkArea,
   fixedSizeDragBounds,
@@ -485,7 +486,7 @@ async function configureAdapters(newPrinterIds = new Set()) {
   const pollAdapters = async () => {
     await Promise.all(adapters.filter((a) => adapterMode(a.config) === 'poll').map(async (adapter) => {
       try { setState(await adapter.read()); markConnected(adapter.config); }
-      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: error.message }); }
+      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: formatAdapterError(error) }); }
     }));
   };
   await pollAdapters();
@@ -520,6 +521,12 @@ app.on('before-quit', () => { app.isQuitting = true; stopAdapters(); });
 ipcMain.handle('snapshot:get', () => snapshot());
 ipcMain.handle('bambu:scan', () => scanBambuPrinters());
 ipcMain.handle('moonraker:scan', () => scanMoonrakerPrinters());
+ipcMain.handle('repetierserver:list-printers', (_event, config) => createAdapter({
+  type: 'repetierserver',
+  host: config?.host,
+  port: config?.port,
+  apiKey: config?.apiKey,
+}).listPrinters());
 ipcMain.handle('settings:get', settingsPayload);
 ipcMain.handle('settings:export', async () => {
   const result = await dialog.showSaveDialog(settingsWindow, {

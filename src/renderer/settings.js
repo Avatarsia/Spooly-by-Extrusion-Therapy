@@ -5,6 +5,7 @@ const scaleOut = document.querySelector('#scaleOut');
 const launch = document.querySelector('#launch');
 const MIN_SCALE = .65;
 const MAX_SCALE = 1.1;
+const PORT_DEFAULTS = { moonraker: 7125, duet: 80, repetierserver: 3344 };
 
 function sliderToScale(value) {
   return MIN_SCALE + ((Number(value) - 1) / 99) * (MAX_SCALE - MIN_SCALE);
@@ -41,6 +42,16 @@ function cardValue(card) {
   return printer;
 }
 
+function applyPortDefault(card) {
+  const portInput = card.querySelector('[data-field="port"]');
+  const type = card.querySelector('[data-field="type"]').value;
+  const defaultPort = PORT_DEFAULTS[type] || PORT_DEFAULTS.moonraker;
+  if (!portInput.value || portInput.dataset.auto === 'true') {
+    portInput.value = defaultPort;
+    portInput.dataset.auto = 'true';
+  }
+}
+
 function existingCard(printer, excludingCard) {
   const key = printerKey(printer);
   if (!key || key.endsWith(':')) return null;
@@ -63,8 +74,10 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
     card.classList.toggle('is-bambu', type === 'bambu');
     card.classList.toggle('is-duet', type === 'duet');
     card.classList.toggle('is-repetierserver', type === 'repetierserver');
+    applyPortDefault(card);
   };
   card.querySelector('[data-field="type"]').addEventListener('change', updateType);
+  card.querySelector('[data-field="port"]').addEventListener('input', (event) => { delete event.currentTarget.dataset.auto; });
   card.querySelector('.guide-button').addEventListener('click', () => document.querySelector('#bambuGuide').showModal());
   card.querySelector('.scan-moonraker').addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -138,6 +151,42 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
     } finally {
       button.disabled = false;
       if (button.textContent === 'Scanning…') button.textContent = 'Scan local network';
+    }
+  });
+  card.querySelector('.scan-repetier').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const results = card.querySelector('.repetier-scan-results');
+    button.disabled = true;
+    button.textContent = 'Fetching…';
+    results.replaceChildren();
+    try {
+      const printers = await window.spooly.listRepetierPrinters({
+        host: card.querySelector('[data-field="host"]').value.trim(),
+        port: Number(card.querySelector('[data-field="port"]').value) || undefined,
+        apiKey: card.querySelector('[data-field="apiKey"]').value.trim(),
+      });
+      const selectPrinter = (printer) => {
+        card.querySelector('[data-field="slug"]').value = printer.slug;
+        const name = card.querySelector('[data-field="name"]');
+        if (!name.value) name.value = printer.name;
+        results.replaceChildren();
+        button.textContent = 'Printer selected';
+        return true;
+      };
+      if (printers.length === 1) selectPrinter(printers[0]);
+      else if (printers.length > 1) printers.forEach((printer) => {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.textContent = `${printer.name} · ${printer.slug}`;
+        choice.addEventListener('click', () => selectPrinter(printer));
+        results.append(choice);
+      });
+      else button.textContent = 'No printers found — try manual entry';
+    } catch (_) {
+      button.textContent = 'Fetch failed — try manual entry';
+    } finally {
+      button.disabled = false;
+      if (button.textContent === 'Fetching…') button.textContent = 'Fetch printers';
     }
   });
   card.querySelector('.remove').addEventListener('click', () => card.remove());

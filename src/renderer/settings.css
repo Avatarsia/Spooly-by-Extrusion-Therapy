@@ -30,6 +30,7 @@ button:disabled { cursor: default; opacity: .55; }
 .printer.is-bambu .moon { display: none; }
 .repetier { display: none; }
 .printer.is-repetierserver .repetier { display: grid; }
+.repetier-actions { grid-column: 1 / -1; display: flex; justify-content: flex-start; gap: 7px; }
 .printer.is-duet .moon-actions, .printer.is-duet .moon-scan-results,
 .printer.is-repetierserver .moon-actions, .printer.is-repetierserver .moon-scan-results { display: none; }
 .bambu-actions { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; gap: 7px; }

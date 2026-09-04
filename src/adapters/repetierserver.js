@@ -11,8 +11,11 @@
 //                                                     error}], heatedBeds: [{tempRead,tempSet,
 //                                                     error}], fans: [{on,voltage}], ... } } for
 //                                                     one printer's live heater/fan telemetry.
-// `apikey` is optional per the docs (a machine password/session also works), passed as a query
-// param since this is a local desktop client, not a shared proxy.
+// The API key is sent as an `X-Api-Key` request header, not a query param: confirmed against
+// OrcaSlicer's (and upstream PrusaSlicer's) actively-maintained Repetier-Server print-host
+// client (src/slic3r/Utils/Repetier.cpp, Repetier::set_auth()), which does
+// `http.header("X-Api-Key", apikey)` for every request against these same `printer/list` and
+// `printer/api/<slug>` endpoints.
 // jobstate only distinguishes "running" from not-running (RepetierServerSharpApi's
 // RepetierCurrentPrintInfo maps jobstate === 'running' to in-progress, anything else to
 // completed) - there is no documented terminal "finished" job state and no filament-runout
@@ -28,22 +31,39 @@ class RepetierServerAdapter {
     return `http://${host}:${this.config.port || 3344}`;
   }
 
+  get authHeaders() {
+    return this.config.apiKey ? { 'X-Api-Key': this.config.apiKey } : {};
+  }
+
+  async fetchPrinterList() {
+    const listUrl = `${this.baseUrl}/printer/list`;
+    const listResponse = await fetch(listUrl, { headers: this.authHeaders, signal: AbortSignal.timeout(3500) });
+    if (!listResponse.ok) throw new Error(`RepetierServer returned ${listResponse.status}`);
+    const listBody = await listResponse.json();
+    return Array.isArray(listBody?.data) ? listBody.data : [];
+  }
+
+  // Used by the settings UI's "Fetch printers" picker (see main.js's
+  // repetierserver:list-printers IPC handler) so a user can pick a slug
+  // instead of typing it blind.
+  async listPrinters() {
+    const printers = await this.fetchPrinterList();
+    return printers
+      .filter((printer) => printer?.slug)
+      .map((printer) => ({ slug: printer.slug, name: printer.name || printer.slug }));
+  }
+
   async read() {
     const slug = this.config.slug;
-    const apiKeyParam = this.config.apiKey ? `apikey=${encodeURIComponent(this.config.apiKey)}` : '';
-    const listUrl = `${this.baseUrl}/printer/list${apiKeyParam ? `?${apiKeyParam}` : ''}`;
-    const stateUrl = `${this.baseUrl}/printer/api/${encodeURIComponent(slug)}?a=stateList${apiKeyParam ? `&${apiKeyParam}` : ''}`;
+    const stateUrl = `${this.baseUrl}/printer/api/${encodeURIComponent(slug)}?a=stateList`;
 
-    const [listResponse, stateResponse] = await Promise.all([
-      fetch(listUrl, { signal: AbortSignal.timeout(3500) }),
-      fetch(stateUrl, { signal: AbortSignal.timeout(3500) }),
+    const [printers, stateResponse] = await Promise.all([
+      this.fetchPrinterList(),
+      fetch(stateUrl, { headers: this.authHeaders, signal: AbortSignal.timeout(3500) }),
     ]);
-    if (!listResponse.ok) throw new Error(`RepetierServer returned ${listResponse.status}`);
     if (!stateResponse.ok) throw new Error(`RepetierServer returned ${stateResponse.status}`);
 
-    const listBody = await listResponse.json();
     const stateBody = await stateResponse.json();
-    const printers = Array.isArray(listBody?.data) ? listBody.data : [];
     const printerEntry = printers.find((printer) => printer?.slug === slug) || null;
     const stateEntry = stateBody?.[slug] || null;
 
