@@ -71,3 +71,28 @@ test('strips an explicit http scheme and still applies the default port', () => 
   const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'http://192.168.1.42' });
   assert.equal(adapter.baseUrl, 'http://192.168.1.42:7125');
 });
+
+test('strips a trailing slash from the host before building the URL', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'https://voron.example.com/' });
+  assert.equal(adapter.baseUrl, 'https://voron.example.com');
+});
+
+test('defaults a bare domain with no scheme to https instead of the LAN port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'voron.example.com' });
+  assert.equal(adapter.baseUrl, 'https://voron.example.com');
+});
+
+test('honors a configured port on a bare domain default to https', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'voron.example.com', port: 8443 });
+  assert.equal(adapter.baseUrl, 'https://voron.example.com:8443');
+});
+
+test('still defaults localhost to http with the Moonraker port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'localhost' });
+  assert.equal(adapter.baseUrl, 'http://localhost:7125');
+});
+
+test('an explicit http scheme forces http even on a domain', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'http://voron.example.com' });
+  assert.equal(adapter.baseUrl, 'http://voron.example.com:7125');
+});
