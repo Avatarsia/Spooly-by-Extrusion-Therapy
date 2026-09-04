@@ -5,7 +5,18 @@ class MoonrakerAdapter {
   }
 
   get baseUrl() {
-    const host = this.config.host.replace(/^https?:\/\//, '');
+    const explicitHttps = /^https:\/\//.test(this.config.host);
+    const explicitHttp = /^http:\/\//.test(this.config.host);
+    const host = this.config.host.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    // A bare host with no scheme keeps the historical http()+7125 default for
+    // direct-IP/LAN setups, but a hostname/domain (not an IP or "localhost")
+    // almost always sits behind a reverse proxy exposing only 80/443, so it
+    // defaults to https with no forced port instead.
+    const isDirectHost = /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host === 'localhost';
+    const useHttps = explicitHttps || (!explicitHttp && !isDirectHost);
+    if (useHttps) {
+      return this.config.port ? `https://${host}:${this.config.port}` : `https://${host}`;
+    }
     return `http://${host}:${this.config.port || 7125}`;
   }
 
