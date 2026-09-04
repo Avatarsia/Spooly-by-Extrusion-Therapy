@@ -4,8 +4,7 @@ const fs = require('node:fs/promises');
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
-const { MoonrakerAdapter } = require('./adapters/moonraker');
-const { BambuAdapter } = require('./adapters/bambu');
+const { createAdapter, adapterMode } = require('./adapter-registry');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters } = require('./printers');
@@ -481,16 +480,16 @@ async function configureAdapters(newPrinterIds = new Set()) {
       petWindow?.webContents.send('easter-egg', 'bambu');
     }
   };
-  adapters = configs.map((config) => config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config));
-  adapters.filter((a) => a instanceof BambuAdapter).forEach((a) => a.connect(setState, markConnected));
-  const pollMoonraker = async () => {
-    await Promise.all(adapters.filter((a) => a instanceof MoonrakerAdapter).map(async (adapter) => {
+  adapters = configs.map((config) => createAdapter(config));
+  adapters.filter((a) => adapterMode(a.config) === 'push').forEach((a) => a.connect(setState, markConnected));
+  const pollAdapters = async () => {
+    await Promise.all(adapters.filter((a) => adapterMode(a.config) === 'poll').map(async (adapter) => {
       try { setState(await adapter.read()); markConnected(adapter.config); }
-      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: 'moonraker', status: 'offline', message: error.message }); }
+      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: error.message }); }
     }));
   };
-  await pollMoonraker();
-  pollTimer = setInterval(pollMoonraker, 3000);
+  await pollAdapters();
+  pollTimer = setInterval(pollAdapters, 3000);
   broadcast();
 }
 
