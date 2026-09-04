@@ -4,8 +4,7 @@ const fs = require('node:fs/promises');
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net, Notification } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
-const { MoonrakerAdapter } = require('./adapters/moonraker');
-const { BambuAdapter } = require('./adapters/bambu');
+const { createAdapter, adapterMode } = require('./adapter-registry');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters, samePrinterConfiguration } = require('./printers');
@@ -555,10 +554,9 @@ async function configureAdapters(setupPrinterIds = new Set(), { preserveUnchange
       petWindow?.webContents.send('easter-egg', 'bambu');
     }
   };
-  adapters = configs.map((config) => preservedAdapters.get(config.id)
-    || (config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config)));
+  adapters = configs.map((config) => preservedAdapters.get(config.id) || createAdapter(config));
   adaptersToDisconnect.forEach((adapter) => adapter.disconnect?.());
-  adapters.filter((adapter) => adapter instanceof BambuAdapter && !preservedAdapters.has(adapter.config.id))
+  adapters.filter((adapter) => adapterMode(adapter.config) === 'push' && !preservedAdapters.has(adapter.config.id))
     .forEach((adapter) => adapter.connect(
       (state) => { if (adapters.includes(adapter)) setState(state); },
       (config) => { if (adapters.includes(adapter)) markConnected(config); },
@@ -566,18 +564,18 @@ async function configureAdapters(setupPrinterIds = new Set(), { preserveUnchange
         ? (value) => { if (adapters.includes(adapter)) reportConnectionStatus(value); }
         : () => {},
     ));
-  const pollMoonraker = async () => {
-    await Promise.all(adapters.filter((a) => a instanceof MoonrakerAdapter).map(async (adapter) => {
+  const pollAdapters = async () => {
+    await Promise.all(adapters.filter((a) => adapterMode(a.config) === 'poll').map(async (adapter) => {
       try {
         const state = await adapter.read();
         if (adapters.includes(adapter)) { setState(state); markConnected(adapter.config); }
       } catch (error) {
-        if (adapters.includes(adapter)) setState({ id: adapter.config.id, name: adapter.config.name, type: 'moonraker', status: 'offline', message: error.message });
+        if (adapters.includes(adapter)) setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: error.message });
       }
     }));
   };
-  await pollMoonraker();
-  pollTimer = setInterval(pollMoonraker, 3000);
+  await pollAdapters();
+  pollTimer = setInterval(pollAdapters, 3000);
   broadcast();
 }
 
