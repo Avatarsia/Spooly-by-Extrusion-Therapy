@@ -5,7 +5,11 @@ class MoonrakerAdapter {
   }
 
   get baseUrl() {
+    const isHttps = /^https:\/\//.test(this.config.host);
     const host = this.config.host.replace(/^https?:\/\//, '');
+    if (isHttps) {
+      return this.config.port ? `https://${host}:${this.config.port}` : `https://${host}`;
+    }
     return `http://${host}:${this.config.port || 7125}`;
   }
 

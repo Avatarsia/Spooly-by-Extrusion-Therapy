@@ -51,3 +51,23 @@ test('does not fabricate zeroes from missing Moonraker telemetry', () => {
   assert.equal(state.bedTemp, null);
   assert.equal(state.bedTarget, null);
 });
+
+test('defaults a plain host to http with the Moonraker port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: '192.168.1.42' });
+  assert.equal(adapter.baseUrl, 'http://192.168.1.42:7125');
+});
+
+test('keeps an explicit https scheme without forcing the default port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'https://voron.local' });
+  assert.equal(adapter.baseUrl, 'https://voron.local');
+});
+
+test('keeps an explicit https scheme and honors a configured port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'https://voron.local', port: 8443 });
+  assert.equal(adapter.baseUrl, 'https://voron.local:8443');
+});
+
+test('strips an explicit http scheme and still applies the default port', () => {
+  const adapter = new MoonrakerAdapter({ id: 'voron', name: 'Voron', host: 'http://192.168.1.42' });
+  assert.equal(adapter.baseUrl, 'http://192.168.1.42:7125');
+});
