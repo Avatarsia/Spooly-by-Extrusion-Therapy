@@ -156,34 +156,45 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
   card.querySelector('.scan-repetier').addEventListener('click', async (event) => {
     const button = event.currentTarget;
     const results = card.querySelector('.repetier-scan-results');
+    const host = card.querySelector('[data-field="host"]').value.trim();
+    const apiKey = card.querySelector('[data-field="apiKey"]').value.trim();
+    results.replaceChildren();
+    if (!host || !apiKey) {
+      results.textContent = !host ? 'Enter the host first.' : 'Enter the API key first.';
+      return;
+    }
     button.disabled = true;
     button.textContent = 'Fetching…';
-    results.replaceChildren();
     try {
       const printers = await window.spooly.listRepetierPrinters({
-        host: card.querySelector('[data-field="host"]').value.trim(),
+        host,
         port: Number(card.querySelector('[data-field="port"]').value) || undefined,
-        apiKey: card.querySelector('[data-field="apiKey"]').value.trim(),
+        apiKey,
       });
-      const selectPrinter = (printer) => {
+      const applyPrinter = (printer) => {
         card.querySelector('[data-field="slug"]').value = printer.slug;
         const name = card.querySelector('[data-field="name"]');
         if (!name.value) name.value = printer.name;
-        results.replaceChildren();
-        button.textContent = 'Printer selected';
-        return true;
       };
-      if (printers.length === 1) selectPrinter(printers[0]);
-      else if (printers.length > 1) printers.forEach((printer) => {
-        const choice = document.createElement('button');
-        choice.type = 'button';
-        choice.textContent = `${printer.name} · ${printer.slug}`;
-        choice.addEventListener('click', () => selectPrinter(printer));
-        results.append(choice);
-      });
-      else button.textContent = 'No printers found — try manual entry';
+      if (printers.length === 0) {
+        results.textContent = 'No printers found — try manual entry';
+      } else if (printers.length === 1) {
+        applyPrinter(printers[0]);
+        button.textContent = 'Printer selected';
+      } else {
+        const currentSlug = card.querySelector('[data-field="slug"]').value.trim();
+        const select = document.createElement('select');
+        select.append(new Option('Select a printer…', '', true, !currentSlug));
+        select.firstChild.disabled = true;
+        printers.forEach((printer) => select.append(new Option(`${printer.name} · ${printer.slug}`, printer.slug, false, printer.slug === currentSlug)));
+        select.addEventListener('change', () => {
+          const printer = printers.find((p) => p.slug === select.value);
+          if (printer) applyPrinter(printer);
+        });
+        results.append(select);
+      }
     } catch (_) {
-      button.textContent = 'Fetch failed — try manual entry';
+      results.textContent = 'Fetch failed — check host, port, and API key.';
     } finally {
       button.disabled = false;
       if (button.textContent === 'Fetching…') button.textContent = 'Fetch printers';
