@@ -21,3 +21,32 @@ test('deduplicates printer configurations while preserving the first', () => {
   const duplicate = { id: 'two', type: 'moonraker', host: '192.168.1.8', port: 7125 };
   assert.deepEqual(dedupePrinters([first, duplicate]), [first]);
 });
+
+test('treats Duet printers on different hosts as distinct', () => {
+  assert.notEqual(
+    canonicalPrinterKey({ type: 'duet', host: '192.168.1.20', port: 80 }),
+    canonicalPrinterKey({ type: 'duet', host: '192.168.1.21', port: 80 }),
+  );
+});
+
+test('identifies duplicate Duet printers by normalized host and port', () => {
+  assert.equal(
+    canonicalPrinterKey({ type: 'duet', host: 'http://Voron2.local/', port: 80 }),
+    canonicalPrinterKey({ type: 'duet', host: 'voron2.local', port: 80 }),
+  );
+});
+
+test('treats RepetierServer printers on the same host and port but different slugs as distinct', () => {
+  const first = canonicalPrinterKey({ type: 'repetierserver', host: '192.168.1.30', port: 3344, slug: 'printer1' });
+  const second = canonicalPrinterKey({ type: 'repetierserver', host: '192.168.1.30', port: 3344, slug: 'printer2' });
+  assert.notEqual(first, second);
+  assert.ok(first);
+  assert.ok(second);
+});
+
+test('identifies duplicate RepetierServer printers by normalized host, port, and slug', () => {
+  assert.equal(
+    canonicalPrinterKey({ type: 'repetierserver', host: 'http://Repetier.local/', port: 3344, slug: 'Printer1' }),
+    canonicalPrinterKey({ type: 'repetierserver', host: 'repetier.local', port: 3344, slug: 'printer1' }),
+  );
+});

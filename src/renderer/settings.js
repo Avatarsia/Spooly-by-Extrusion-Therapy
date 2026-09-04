@@ -24,6 +24,12 @@ function printerKey(printer = {}) {
     const serial = String(printer.serial || '').trim().toUpperCase();
     return serial ? `bambu:serial:${serial}` : `bambu:host:${normalizeHost(printer.host)}`;
   }
+  if (printer.type === 'duet') {
+    return `duet:${normalizeHost(printer.host)}:${Number(printer.port) || 80}`;
+  }
+  if (printer.type === 'repetierserver') {
+    return `repetierserver:${normalizeHost(printer.host)}:${Number(printer.port) || 3344}:${String(printer.slug || '').trim().toLowerCase()}`;
+  }
   return `moonraker:${normalizeHost(printer.host)}:${Number(printer.port) || 7125}`;
 }
 
@@ -52,7 +58,12 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
   const card = template.content.firstElementChild.cloneNode(true);
   card.dataset.id = data.id || crypto.randomUUID();
   card.querySelectorAll('[data-field]').forEach((input) => { if (data[input.dataset.field] !== undefined) input.value = data[input.dataset.field]; });
-  const updateType = () => card.classList.toggle('is-bambu', card.querySelector('[data-field="type"]').value === 'bambu');
+  const updateType = () => {
+    const type = card.querySelector('[data-field="type"]').value;
+    card.classList.toggle('is-bambu', type === 'bambu');
+    card.classList.toggle('is-duet', type === 'duet');
+    card.classList.toggle('is-repetierserver', type === 'repetierserver');
+  };
   card.querySelector('[data-field="type"]').addEventListener('change', updateType);
   card.querySelector('.guide-button').addEventListener('click', () => document.querySelector('#bambuGuide').showModal());
   card.querySelector('.scan-moonraker').addEventListener('click', async (event) => {

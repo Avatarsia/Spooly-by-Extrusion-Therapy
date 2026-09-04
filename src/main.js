@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
-const { createAdapter, adapterMode } = require('./adapter-registry');
+const { ADAPTER_REGISTRY, createAdapter, adapterMode } = require('./adapter-registry');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters } = require('./printers');
@@ -553,7 +553,7 @@ ipcMain.handle('settings:import', async () => {
   }
   const validPrinters = dedupePrinters(backup.printers.filter((printer) =>
     printer && typeof printer.id === 'string' && typeof printer.name === 'string'
-      && typeof printer.host === 'string' && ['bambu', 'moonraker'].includes(printer.type)
+      && typeof printer.host === 'string' && Object.keys(ADAPTER_REGISTRY).includes(printer.type)
   ));
   const printers = migrateLegacyCredentials(validPrinters).printers;
   store.set('printers', printers);

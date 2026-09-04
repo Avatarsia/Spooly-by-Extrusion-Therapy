@@ -15,6 +15,15 @@ const CANONICAL_KEY_BY_TYPE = {
     const host = normalizeHost(printer.host);
     return host ? `moonraker:${host}:${Number(printer.port) || 7125}` : null;
   },
+  duet: (printer) => {
+    const host = normalizeHost(printer.host);
+    return host ? `duet:${host}:${Number(printer.port) || 80}` : null;
+  },
+  repetierserver: (printer) => {
+    const host = normalizeHost(printer.host);
+    const slug = String(printer.slug || '').trim().toLowerCase();
+    return host && slug ? `repetierserver:${host}:${Number(printer.port) || 3344}:${slug}` : null;
+  },
 };
 
 function canonicalPrinterKey(printer = {}) {
