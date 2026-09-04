@@ -4,11 +4,11 @@ const fs = require('node:fs/promises');
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
-const { MoonrakerAdapter } = require('./adapters/moonraker');
-const { BambuAdapter } = require('./adapters/bambu');
+const { ADAPTER_REGISTRY, createAdapter, adapterMode } = require('./adapter-registry');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters } = require('./printers');
+const { formatAdapterError } = require('./adapter-errors');
 const {
   clampBoundsToWorkArea,
   fixedSizeDragBounds,
@@ -481,16 +481,16 @@ async function configureAdapters(newPrinterIds = new Set()) {
       petWindow?.webContents.send('easter-egg', 'bambu');
     }
   };
-  adapters = configs.map((config) => config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config));
-  adapters.filter((a) => a instanceof BambuAdapter).forEach((a) => a.connect(setState, markConnected));
-  const pollMoonraker = async () => {
-    await Promise.all(adapters.filter((a) => a instanceof MoonrakerAdapter).map(async (adapter) => {
+  adapters = configs.map((config) => createAdapter(config));
+  adapters.filter((a) => adapterMode(a.config) === 'push').forEach((a) => a.connect(setState, markConnected));
+  const pollAdapters = async () => {
+    await Promise.all(adapters.filter((a) => adapterMode(a.config) === 'poll').map(async (adapter) => {
       try { setState(await adapter.read()); markConnected(adapter.config); }
-      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: 'moonraker', status: 'offline', message: error.message }); }
+      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: formatAdapterError(error) }); }
     }));
   };
-  await pollMoonraker();
-  pollTimer = setInterval(pollMoonraker, 3000);
+  await pollAdapters();
+  pollTimer = setInterval(pollAdapters, 3000);
   broadcast();
 }
 
@@ -521,6 +521,12 @@ app.on('before-quit', () => { app.isQuitting = true; stopAdapters(); });
 ipcMain.handle('snapshot:get', () => snapshot());
 ipcMain.handle('bambu:scan', () => scanBambuPrinters());
 ipcMain.handle('moonraker:scan', () => scanMoonrakerPrinters());
+ipcMain.handle('repetierserver:list-printers', (_event, config) => createAdapter({
+  type: 'repetierserver',
+  host: config?.host,
+  port: config?.port,
+  apiKey: config?.apiKey,
+}).listPrinters());
 ipcMain.handle('settings:get', settingsPayload);
 ipcMain.handle('settings:export', async () => {
   const result = await dialog.showSaveDialog(settingsWindow, {
@@ -554,7 +560,7 @@ ipcMain.handle('settings:import', async () => {
   }
   const validPrinters = dedupePrinters(backup.printers.filter((printer) =>
     printer && typeof printer.id === 'string' && typeof printer.name === 'string'
-      && typeof printer.host === 'string' && ['bambu', 'moonraker'].includes(printer.type)
+      && typeof printer.host === 'string' && Object.keys(ADAPTER_REGISTRY).includes(printer.type)
   ));
   const printers = migrateLegacyCredentials(validPrinters).printers;
   store.set('printers', printers);
