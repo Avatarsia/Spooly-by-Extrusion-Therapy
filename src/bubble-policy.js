@@ -31,4 +31,30 @@ function isNewAttention(previous, next) {
   return current.key !== attentionFor(previous)?.key;
 }
 
-module.exports = { attentionFor, fleetLayout, isNewAttention };
+function hasNumericValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+}
+
+function groupPrinters(printers = []) {
+  const attention = [];
+  const withProgress = [];
+  const withoutProgress = [];
+  printers.forEach((printer, index) => {
+    if (attentionFor(printer)) {
+      attention.push(printer);
+      return;
+    }
+    if (['printing', 'paused'].includes(printer.status) && hasNumericValue(printer.progress)) {
+      withProgress.push({ printer, index });
+    } else {
+      withoutProgress.push(printer);
+    }
+  });
+  withProgress.sort((a, b) => Number(b.printer.progress) - Number(a.printer.progress) || a.index - b.index);
+  return {
+    attention,
+    rest: [...withProgress.map(({ printer }) => printer), ...withoutProgress],
+  };
+}
+
+module.exports = { attentionFor, fleetLayout, isNewAttention, groupPrinters };
