@@ -32,7 +32,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 const store = new Store({
-  defaults: { printers: [], scale: 1, bubbleScale: 1, onboarded: false, window: null, launchAtLogin: true },
+  defaults: { printers: [], scale: 1, bubbleScale: 1, bubbleVisibleRestRows: 3, onboarded: false, window: null, launchAtLogin: true },
 });
 
 function enforceStorePermissions() {
@@ -60,9 +60,14 @@ let bubbleHideTimer = null;
 let bubbleHovered = false;
 let petHovered = false;
 let bubbleNaturalSize = null;
+let bubbleRowLayout = null;
+let bubbleMetrics = null;
 let bubbleResize = null;
 let bubbleResizeTimer = null;
 let bubbleResizePoint = null;
+let rowResize = null;
+let rowResizeTimer = null;
+let rowResizePoint = null;
 const previewDevil = process.argv.includes('--dev') && process.argv.includes('--preview-devil');
 const previewPaused = process.argv.includes('--dev') && process.argv.includes('--preview-paused');
 const previewComplete = process.argv.includes('--dev') && process.argv.includes('--preview-complete');
@@ -174,9 +179,36 @@ function broadcast() {
   if (bubbleWindow?.isVisible()) updateBubble(current);
 }
 
+// Prefer the renderer's measured layout (real row/track heights, padding,
+// gap) over the 94px-per-row estimate below — wrapped telemetry, borders,
+// and sub-pixel rounding make the estimate unreliable as an exact fit, which
+// used to leave a permanent sliver of scrollbar even when content was meant
+// to fit exactly.
+function computeBubbleNaturalHeight({ attentionRows, restRows, visibleRestRows, metrics }) {
+  const rowHeight = 94;
+  // #bubble's height:100% resolves against <body>'s content box, so body's
+  // own vertical padding (bubble.css body rule) is space the window has to
+  // provide on top of #bubble's own content height, not space #bubble gets
+  // "for free" from height:100%.
+  const bodyPaddingV = 32;
+  const metricsUsable = metrics
+    && Array.isArray(metrics.rowHeights)
+    && metrics.rowHeights.length >= restRows
+    && (attentionRows === 0 || Number.isFinite(metrics.errorsHeight));
+  if (metricsUsable) {
+    const rowsSum = metrics.rowHeights.slice(0, visibleRestRows).reduce((sum, value) => sum + value, 0);
+    const gap = attentionRows > 0 && visibleRestRows > 0 ? metrics.gap : 0;
+    // +2 absorbs sub-pixel rounding between the renderer's fractional CSS
+    // measurements and the integer window bounds electron actually sets.
+    return Math.max(108, (metrics.bodyPaddingV ?? bodyPaddingV) + metrics.paddingV + metrics.errorsHeight + gap + rowsSum + 2);
+  }
+  const blockGap = attentionRows > 0 && visibleRestRows > 0 ? 12 : 0;
+  return Math.max(108, bodyPaddingV + 42 + (attentionRows * rowHeight) + blockGap + (visibleRestRows * rowHeight) + 8);
+}
+
 function positionBubble(current = snapshot()) {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !petWindow) return;
-  if (bubbleResize) return;
+  if (bubbleResize || rowResize) return;
   const petBounds = petWindow.getBounds();
   const workArea = screen.getDisplayMatching(petBounds).workArea;
   const grouped = groupPrinters(current.printers);
@@ -186,8 +218,15 @@ function positionBubble(current = snapshot()) {
   // Telemetry wraps by whole readings so every fan remains visible.
   const rowHeight = 94;
   const restRows = grouped.rest.length ? restLayout.rows : 0;
-  const blockGap = attentionRows > 0 && restRows > 0 ? 12 : 0;
-  const naturalHeight = Math.max(108, 42 + attentionRows * rowHeight + blockGap + restRows * rowHeight);
+  // Only show up to bubbleVisibleRestRows by default (drag the row handle on the
+  // top edge to reveal more) — the grid itself still renders every row
+  // (layout.rows below), so the extra rows are just scrolled rather than
+  // missing from the DOM.
+  const visibleRestRows = restRows
+    ? Math.max(1, Math.min(restRows, Math.round(Number(store.get('bubbleVisibleRestRows'))) || 3))
+    : 0;
+  bubbleRowLayout = { attentionRows, restRows, rowHeight };
+  const naturalHeight = computeBubbleNaturalHeight({ attentionRows, restRows, visibleRestRows, metrics: bubbleMetrics });
   const statusLabel = (status) => ({ filament_out: 'FILAMENT OUT' })[status] || String(status || '').toUpperCase();
   const numeric = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const telemetryLength = (printer) => {
@@ -640,6 +679,21 @@ ipcMain.on('bubble:hover', (_event, hovered) => {
   if (bubbleHovered) clearTimeout(bubbleHideTimer);
   else scheduleBubbleHide();
 });
+ipcMain.on('bubble:metrics', (_event, metrics) => {
+  bubbleMetrics = metrics;
+  if (!bubbleWindow || bubbleWindow.isDestroyed() || bubbleResize || rowResize || !bubbleRowLayout) return;
+  const { attentionRows, restRows } = bubbleRowLayout;
+  const visibleRestRows = restRows
+    ? Math.max(1, Math.min(restRows, Math.round(Number(store.get('bubbleVisibleRestRows'))) || 3))
+    : 0;
+  const naturalHeight = computeBubbleNaturalHeight({ attentionRows, restRows, visibleRestRows, metrics });
+  const scale = clampScale(store.get('bubbleScale'));
+  const targetHeight = Math.round(naturalHeight * scale);
+  // Re-measuring after this reposition reports the same numbers (heights no
+  // longer depend on the window, see the flex-shrink fix above), so this
+  // only fires once per real change instead of looping.
+  if (Math.abs(targetHeight - bubbleWindow.getBounds().height) > 1) positionBubble(snapshot());
+});
 ipcMain.on('bubble:resize-start', () => {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleNaturalSize) return;
   bubbleHovered = true;
@@ -686,6 +740,63 @@ ipcMain.on('bubble:resize-end', () => {
   store.set('bubbleScale', bubbleResize.scale);
   bubbleResize = null;
   bubbleResizePoint = null;
+  bubbleHovered = false;
+  positionBubble(snapshot());
+  scheduleBubbleHide();
+});
+ipcMain.on('bubble:row-resize-start', () => {
+  if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleRowLayout || !bubbleRowLayout.restRows) return;
+  bubbleHovered = true;
+  clearTimeout(bubbleHideTimer);
+  const bounds = bubbleWindow.getBounds();
+  const workArea = screen.getDisplayMatching(bounds).workArea;
+  const startVisibleRows = Math.max(1, Math.min(
+    bubbleRowLayout.restRows,
+    Math.round(Number(store.get('bubbleVisibleRestRows'))) || 3,
+  ));
+  rowResize = {
+    cursor: screen.getCursorScreenPoint(),
+    bounds,
+    workArea,
+    scale: clampScale(store.get('bubbleScale')),
+    rowLayout: { ...bubbleRowLayout },
+    startVisibleRows,
+    visibleRows: startVisibleRows,
+  };
+  rowResizePoint = rowResize.cursor;
+});
+function applyRowResize() {
+  rowResizeTimer = null;
+  if (!rowResize || !bubbleWindow || bubbleWindow.isDestroyed()) return;
+  const point = rowResizePoint || screen.getCursorScreenPoint();
+  const { rowLayout, scale, workArea, bounds, cursor, startVisibleRows } = rowResize;
+  const deltaY = point.y - cursor.y;
+  const rowDelta = Math.round((-deltaY) / (rowLayout.rowHeight * scale));
+  const visibleRows = Math.max(1, Math.min(rowLayout.restRows, startVisibleRows + rowDelta));
+  const naturalHeight = computeBubbleNaturalHeight({
+    attentionRows: rowLayout.attentionRows,
+    restRows: rowLayout.restRows,
+    visibleRestRows: visibleRows,
+    metrics: bubbleMetrics,
+  });
+  const height = Math.min(Math.round(naturalHeight * scale), workArea.height - 12);
+  const y = Math.max(workArea.y, Math.min(bounds.y + bounds.height - height, workArea.y + workArea.height - height));
+  rowResize.visibleRows = visibleRows;
+  bubbleWindow.setBounds({ x: bounds.x, y, width: bounds.width, height }, false);
+}
+ipcMain.on('bubble:row-resize-move', () => {
+  if (!rowResize || !bubbleWindow || bubbleWindow.isDestroyed()) return;
+  rowResizePoint = screen.getCursorScreenPoint();
+  if (!rowResizeTimer) rowResizeTimer = setTimeout(applyRowResize, 16);
+});
+ipcMain.on('bubble:row-resize-end', () => {
+  if (!rowResize) return;
+  rowResizePoint = screen.getCursorScreenPoint();
+  clearTimeout(rowResizeTimer);
+  applyRowResize();
+  store.set('bubbleVisibleRestRows', rowResize.visibleRows);
+  rowResize = null;
+  rowResizePoint = null;
   bubbleHovered = false;
   positionBubble(snapshot());
   scheduleBubbleHide();
