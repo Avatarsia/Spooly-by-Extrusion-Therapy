@@ -183,4 +183,6 @@ test('bubble offers a close button, clickable printer names, and the pet a hide 
   assert.match(main, /ipcMain\.on\('pet:context-menu'/);
   assert.match(main, /label: 'Hide Spooly', click: hidePet/);
   assert.doesNotMatch(main, /store\.set\('petHidden'/);
+  assert.match(main, /tray\.on\('click', togglePet\)/);
+  assert.match(main, /function togglePet\(\) \{[^}]*isVisible\(\) \? hidePet\(\) : petWindow\.show\(\)/);
 });

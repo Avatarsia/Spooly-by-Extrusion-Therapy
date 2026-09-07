@@ -496,6 +496,11 @@ function hidePet() {
   petWindow?.hide();
 }
 
+function togglePet() {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  petWindow.isVisible() ? hidePet() : petWindow.show();
+}
+
 function petMenuTemplate() {
   return [
     { label: 'Hide Spooly', click: hidePet },
@@ -532,7 +537,7 @@ function createTray() {
     { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
   ]));
-  tray.on('click', () => petWindow.show());
+  tray.on('click', togglePet);
 }
 
 function stopAdapters() {
