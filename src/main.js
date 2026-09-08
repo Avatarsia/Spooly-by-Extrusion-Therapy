@@ -4,10 +4,11 @@ const fs = require('node:fs/promises');
 const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net, Notification } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
-const { createAdapter, adapterMode } = require('./adapter-registry');
+const { ADAPTER_REGISTRY, createAdapter, adapterMode } = require('./adapter-registry');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
 const { dedupePrinters, samePrinterConfiguration } = require('./printers');
+const { formatAdapterError } = require('./adapter-errors');
 const {
   clampBoundsToWorkArea,
   fixedSizeDragBounds,
@@ -570,7 +571,7 @@ async function configureAdapters(setupPrinterIds = new Set(), { preserveUnchange
         const state = await adapter.read();
         if (adapters.includes(adapter)) { setState(state); markConnected(adapter.config); }
       } catch (error) {
-        if (adapters.includes(adapter)) setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: error.message });
+        if (adapters.includes(adapter)) setState({ id: adapter.config.id, name: adapter.config.name, type: adapter.config.type, status: 'offline', message: formatAdapterError(error) });
       }
     }));
   };
@@ -607,6 +608,12 @@ app.on('before-quit', () => { app.isQuitting = true; stopAdapters(); clearInterv
 ipcMain.handle('snapshot:get', () => snapshot());
 ipcMain.handle('bambu:scan', () => scanBambuPrinters());
 ipcMain.handle('moonraker:scan', () => scanMoonrakerPrinters());
+ipcMain.handle('repetierserver:list-printers', (_event, config) => createAdapter({
+  type: 'repetierserver',
+  host: config?.host,
+  port: config?.port,
+  apiKey: config?.apiKey,
+}).listPrinters());
 ipcMain.handle('settings:get', settingsPayload);
 ipcMain.handle('settings:export', async () => {
   const result = await dialog.showSaveDialog(settingsWindow, {
@@ -641,7 +648,7 @@ ipcMain.handle('settings:import', async () => {
   }
   const validPrinters = dedupePrinters(backup.printers.filter((printer) =>
     printer && typeof printer.id === 'string' && typeof printer.name === 'string'
-      && typeof printer.host === 'string' && ['bambu', 'moonraker'].includes(printer.type)
+      && typeof printer.host === 'string' && Object.keys(ADAPTER_REGISTRY).includes(printer.type)
   ));
   const printers = migrateLegacyCredentials(validPrinters).printers;
   store.set('printers', printers);
