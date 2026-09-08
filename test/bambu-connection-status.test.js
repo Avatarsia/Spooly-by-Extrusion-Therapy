@@ -2,7 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { BambuAdapter } = require('../src/adapters/bambu');
-const { classifyConnectionError } = require('../src/bambu-connection-status');
+const {
+  classifyConnectionError,
+  nextPendingSetupPrinters,
+  shouldReportSetupConnection,
+  storeConnectionStatus,
+} = require('../src/bambu-connection-status');
 
 class FakeMqttClient extends EventEmitter {
   constructor({ subscribeError = null, granted = [{ qos: 0 }] } = {}) {
@@ -100,6 +105,54 @@ test('distinguishes a dropped authenticated connection from missing telemetry', 
   client.emit('close');
   assert.equal(statuses.at(-1).code, 'BAMBU-NETWORK-02');
   device.disconnect();
+});
+
+test('intentional multi-printer shutdown never reports a connection failure', () => {
+  const first = connectedHarness({}, { telemetryTimeoutMs: 100 });
+  const second = connectedHarness({}, { telemetryTimeoutMs: 100 });
+  first.device.disconnect();
+  second.device.disconnect();
+  first.client.emit('error', Object.assign(new Error('socket closed'), { code: 'ECONNRESET' }));
+  first.client.emit('close');
+  second.client.emit('close');
+  assert.equal(first.statuses.some((value) => value.phase === 'failed'), false);
+  assert.equal(second.statuses.some((value) => value.phase === 'failed'), false);
+});
+
+test('successful connection status is transient rather than stored', () => {
+  const statuses = new Map();
+  storeConnectionStatus(statuses, { id: 'bambu-1', phase: 'connecting' });
+  assert.equal(statuses.has('bambu-1'), true);
+  storeConnectionStatus(statuses, { id: 'bambu-1', phase: 'connected' });
+  assert.equal(statuses.has('bambu-1'), false);
+});
+
+test('setup connection details are limited to printers added by the current save', () => {
+  const newPrinterIds = new Set(['new-bambu']);
+  assert.equal(shouldReportSetupConnection(newPrinterIds, 'new-bambu'), true);
+  assert.equal(shouldReportSetupConnection(newPrinterIds, 'existing-bambu-1'), false);
+  assert.equal(shouldReportSetupConnection(newPrinterIds, 'existing-bambu-2'), false);
+});
+
+test('a failed new printer stays in setup until it connects or is removed', () => {
+  const firstSave = nextPendingSetupPrinters(
+    new Set(),
+    new Set(['existing']),
+    new Set(['existing', 'new-bambu']),
+  );
+  assert.deepEqual([...firstSave], ['new-bambu']);
+  const retrySave = nextPendingSetupPrinters(
+    firstSave,
+    new Set(['existing', 'new-bambu']),
+    new Set(['existing', 'new-bambu']),
+  );
+  assert.deepEqual([...retrySave], ['new-bambu']);
+  const removed = nextPendingSetupPrinters(
+    retrySave,
+    new Set(['existing', 'new-bambu']),
+    new Set(['existing']),
+  );
+  assert.deepEqual([...removed], []);
 });
 
 test('reports malformed printer data and remains available for a later valid report', () => {

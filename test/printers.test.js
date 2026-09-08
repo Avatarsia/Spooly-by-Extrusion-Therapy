@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { canonicalPrinterKey, dedupePrinters } = require('../src/printers');
+const { canonicalPrinterKey, dedupePrinters, samePrinterConfiguration } = require('../src/printers');
 
 test('identifies duplicate Bambu printers by serial regardless of IP', () => {
   assert.equal(
@@ -20,4 +20,13 @@ test('deduplicates printer configurations while preserving the first', () => {
   const first = { id: 'one', type: 'moonraker', host: '192.168.1.8', port: 7125 };
   const duplicate = { id: 'two', type: 'moonraker', host: '192.168.1.8', port: 7125 };
   assert.deepEqual(dedupePrinters([first, duplicate]), [first]);
+});
+
+test('recognizes unchanged printer connections during settings saves', () => {
+  const bambu = { id: 'b1', type: 'bambu', name: 'X1C', host: '192.168.1.8', serial: 'ABC', accessCode: '12345678' };
+  assert.equal(samePrinterConfiguration(bambu, { ...bambu }), true);
+  assert.equal(samePrinterConfiguration(bambu, { ...bambu, accessCode: '87654321' }), false);
+  const moonraker = { id: 'm1', type: 'moonraker', name: 'U1', host: '192.168.1.9', port: 7125 };
+  assert.equal(samePrinterConfiguration(moonraker, { ...moonraker, port: '7125' }), true);
+  assert.equal(samePrinterConfiguration(moonraker, { ...moonraker, host: '192.168.1.10' }), false);
 });

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.17
+
+- Limited setup connection messages and error codes to printers added during the current save.
+- Preserved existing printer connections when saving unchanged settings.
+
 ## 0.1.16
 
 - Added persistent Bambu connection-status messages in Setup for discovery, network, secure-connection, access-code, subscription, and printer-data failures.

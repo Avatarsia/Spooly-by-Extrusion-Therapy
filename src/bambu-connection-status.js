@@ -90,4 +90,27 @@ function classifyConnectionError(error = {}) {
   return status('unknown');
 }
 
-module.exports = { classifyConnectionError, status };
+function storeConnectionStatus(statuses, value) {
+  if (value.phase === 'connected') statuses.delete(value.id);
+  else statuses.set(value.id, value);
+}
+
+function shouldReportSetupConnection(newPrinterIds, printerId) {
+  return newPrinterIds.has(printerId);
+}
+
+function nextPendingSetupPrinters(pendingIds, previousIds, nextIds) {
+  const next = new Set([...pendingIds].filter((id) => nextIds.has(id)));
+  nextIds.forEach((id) => {
+    if (!previousIds.has(id)) next.add(id);
+  });
+  return next;
+}
+
+module.exports = {
+  classifyConnectionError,
+  nextPendingSetupPrinters,
+  shouldReportSetupConnection,
+  status,
+  storeConnectionStatus,
+};

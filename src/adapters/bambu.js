@@ -17,6 +17,7 @@ class BambuAdapter {
     this.hasAuthenticated = false;
     this.hasReceivedTelemetry = false;
     this.lastConnectionCode = null;
+    this.isDisconnecting = false;
   }
 
   connectionStatus(callback, value) {
@@ -41,6 +42,7 @@ class BambuAdapter {
 
   connect(onUpdate, onConnected = () => {}, onConnectionStatus = () => {}) {
     if (this.client) return;
+    this.isDisconnecting = false;
     this.connectionStatus(onConnectionStatus, status('connecting'));
     try {
       this.client = this.connectClient(`mqtts://${this.config.host}:8883`, {
@@ -85,10 +87,12 @@ class BambuAdapter {
       }
     });
     this.client.on('error', (error) => {
-      if (!this.hasReceivedTelemetry) this.connectionStatus(onConnectionStatus, classifyConnectionError(error));
+      if (!this.isDisconnecting && !this.hasReceivedTelemetry) {
+        this.connectionStatus(onConnectionStatus, classifyConnectionError(error));
+      }
     });
     this.client.on('close', () => {
-      if (!this.hasReceivedTelemetry && !this.lastConnectionCode) {
+      if (!this.isDisconnecting && !this.hasReceivedTelemetry && !this.lastConnectionCode) {
         this.connectionStatus(onConnectionStatus, status(this.hasAuthenticated ? 'disconnected' : 'network'));
       }
     });
@@ -207,6 +211,7 @@ class BambuAdapter {
   }
 
   disconnect() {
+    this.isDisconnecting = true;
     clearTimeout(this.completionTimer);
     clearTimeout(this.telemetryTimer);
     this.completionTimer = null;

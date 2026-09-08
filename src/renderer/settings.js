@@ -4,6 +4,7 @@ const scale = document.querySelector('#scale');
 const scaleOut = document.querySelector('#scaleOut');
 const launch = document.querySelector('#launch');
 const automaticUpdates = document.querySelector('#automaticUpdates');
+const existingPrinterIds = new Set();
 const MIN_SCALE = .65;
 const MAX_SCALE = 1.1;
 
@@ -50,6 +51,7 @@ function showConnectionStatus(value) {
   const card = [...list.children].find((entry) => entry.dataset.id === value?.id);
   if (!card) return;
   const output = card.querySelector('.connection-status');
+  clearTimeout(output.connectionStatusTimer);
   output.replaceChildren();
   output.dataset.phase = value.phase || '';
   if (value.code) {
@@ -59,6 +61,12 @@ function showConnectionStatus(value) {
     output.append(code);
   }
   output.append(document.createTextNode(value.message || ''));
+  if (value.phase === 'connected') {
+    output.connectionStatusTimer = setTimeout(() => {
+      output.replaceChildren();
+      delete output.dataset.phase;
+    }, 2500);
+  }
 }
 
 function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
@@ -222,13 +230,19 @@ scale.addEventListener('input', () => {
 });
 document.querySelector('#save').addEventListener('click', async () => {
   const saved = document.querySelector('#saved');
-  saved.textContent = 'Saved. Spooly is connecting…';
-  await window.spooly.saveSettings({ printers: readPrinters(), scale: sliderToScale(scale.value), launchAtLogin: launch.checked, automaticUpdates: automaticUpdates.checked });
+  const printers = readPrinters();
+  const newPrinterCount = printers.filter((printer) => !existingPrinterIds.has(printer.id)).length;
+  const saveMessage = newPrinterCount > 0
+    ? `Saved. Connecting ${newPrinterCount === 1 ? 'new printer' : `${newPrinterCount} new printers`}…`
+    : 'Saved.';
+  saved.textContent = saveMessage;
+  await window.spooly.saveSettings({ printers, scale: sliderToScale(scale.value), launchAtLogin: launch.checked, automaticUpdates: automaticUpdates.checked });
+  printers.forEach((printer) => existingPrinterIds.add(printer.id));
   setTimeout(() => {
-    if (saved.textContent === 'Saved. Spooly is connecting…') saved.textContent = '';
+    if (saved.textContent === saveMessage) saved.textContent = '';
   }, 2500);
 });
-window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach(addPrinter); (settings.connectionStatuses || []).forEach(showConnectionStatus); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; automaticUpdates.checked = settings.automaticUpdates !== false; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
+window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach((printer) => { existingPrinterIds.add(printer.id); addPrinter(printer); }); (settings.connectionStatuses || []).forEach(showConnectionStatus); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; automaticUpdates.checked = settings.automaticUpdates !== false; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
 window.spooly.onPrinterConnected(({ name }) => {
   document.querySelector('#saved').textContent = `${name} connected successfully.`;
   setTimeout(() => document.querySelector('#saved').textContent = '', 3500);

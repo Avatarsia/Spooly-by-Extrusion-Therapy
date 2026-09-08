@@ -26,4 +26,11 @@ function dedupePrinters(printers = []) {
   });
 }
 
-module.exports = { canonicalPrinterKey, dedupePrinters, normalizeHost };
+function samePrinterConfiguration(left = {}, right = {}) {
+  const textFields = ['id', 'type', 'name', 'host', 'serial', 'accessCode'];
+  if (!textFields.every((field) => String(left[field] ?? '') === String(right[field] ?? ''))) return false;
+  if (left.type === 'moonraker') return (Number(left.port) || 7125) === (Number(right.port) || 7125);
+  return true;
+}
+
+module.exports = { canonicalPrinterKey, dedupePrinters, normalizeHost, samePrinterConfiguration };

@@ -8,7 +8,7 @@ const { MoonrakerAdapter } = require('./adapters/moonraker');
 const { BambuAdapter } = require('./adapters/bambu');
 const { scanBambuPrinters } = require('./discovery/bambu');
 const { scanMoonrakerPrinters } = require('./discovery/moonraker');
-const { dedupePrinters } = require('./printers');
+const { dedupePrinters, samePrinterConfiguration } = require('./printers');
 const {
   clampBoundsToWorkArea,
   fixedSizeDragBounds,
@@ -22,6 +22,11 @@ const { migrateLegacyCredentials, preparePrintersForStorage } = require('./crede
 const { compareVersions } = require('./update-check');
 const { shouldNotifyForUpdate, shouldRunAutomaticUpdate } = require('./update-schedule');
 const { printerStatusLabel } = require('./status-label');
+const {
+  nextPendingSetupPrinters,
+  shouldReportSetupConnection,
+  storeConnectionStatus,
+} = require('./bambu-connection-status');
 
 const RELEASES_API = 'https://api.github.com/repos/rdcstout/Spooly-by-Extrusion-Therapy/releases/latest';
 const RELEASES_PAGE_PREFIX = 'https://github.com/rdcstout/Spooly-by-Extrusion-Therapy/releases/';
@@ -55,6 +60,7 @@ let pollTimer;
 let adapters = [];
 let printerStates = [];
 let printerConnectionStatuses = new Map();
+let pendingSetupPrinterIds = new Set();
 let acknowledgedKey = null;
 let simulatedPrinters = null;
 let petDrag = null;
@@ -504,11 +510,26 @@ function stopAdapters() {
   adapters = [];
 }
 
-async function configureAdapters(newPrinterIds = new Set()) {
-  stopAdapters();
+async function configureAdapters(setupPrinterIds = new Set(), { preserveUnchanged = false } = {}) {
+  clearInterval(pollTimer);
   const configs = runtimePrinters();
+  const previousStates = new Map(printerStates.map((state) => [state.id, state]));
+  const previousAdapters = adapters;
+  const preservedAdapters = new Map();
+  const adaptersToDisconnect = [];
+  if (preserveUnchanged) {
+    previousAdapters.forEach((adapter) => {
+      const config = configs.find((candidate) => candidate.id === adapter.config.id);
+      if (config && samePrinterConfiguration(config, adapter.config)) preservedAdapters.set(config.id, adapter);
+      else adaptersToDisconnect.push(adapter);
+    });
+  } else {
+    adaptersToDisconnect.push(...previousAdapters);
+  }
   printerConnectionStatuses = new Map();
-  printerStates = configs.map((p) => ({ id: p.id, name: p.name, type: p.type, status: 'offline', message: '' }));
+  printerStates = configs.map((config) => preservedAdapters.has(config.id) && previousStates.has(config.id)
+    ? previousStates.get(config.id)
+    : { id: config.id, name: config.name, type: config.type, status: 'offline', message: '' });
   const setState = (state) => {
     const index = printerStates.findIndex((p) => p.id === state.id);
     const previous = index >= 0 ? printerStates[index] : null;
@@ -520,23 +541,39 @@ async function configureAdapters(newPrinterIds = new Set()) {
   };
   const connectedIds = new Set();
   const reportConnectionStatus = (value) => {
-    printerConnectionStatuses.set(value.id, value);
+    storeConnectionStatus(printerConnectionStatuses, value);
     settingsWindow?.webContents.send('printer:connection-status', value);
   };
   const markConnected = (config) => {
     if (connectedIds.has(config.id)) return;
     connectedIds.add(config.id);
-    settingsWindow?.webContents.send('printer:connected', { id: config.id, name: config.name, type: config.type });
-    if (newPrinterIds.has(config.id) && config.type === 'bambu') {
+    if (setupPrinterIds.has(config.id)) {
+      settingsWindow?.webContents.send('printer:connected', { id: config.id, name: config.name, type: config.type });
+      pendingSetupPrinterIds.delete(config.id);
+    }
+    if (setupPrinterIds.has(config.id) && config.type === 'bambu') {
       petWindow?.webContents.send('easter-egg', 'bambu');
     }
   };
-  adapters = configs.map((config) => config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config));
-  adapters.filter((a) => a instanceof BambuAdapter).forEach((a) => a.connect(setState, markConnected, reportConnectionStatus));
+  adapters = configs.map((config) => preservedAdapters.get(config.id)
+    || (config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config)));
+  adaptersToDisconnect.forEach((adapter) => adapter.disconnect?.());
+  adapters.filter((adapter) => adapter instanceof BambuAdapter && !preservedAdapters.has(adapter.config.id))
+    .forEach((adapter) => adapter.connect(
+      (state) => { if (adapters.includes(adapter)) setState(state); },
+      (config) => { if (adapters.includes(adapter)) markConnected(config); },
+      shouldReportSetupConnection(setupPrinterIds, adapter.config.id)
+        ? (value) => { if (adapters.includes(adapter)) reportConnectionStatus(value); }
+        : () => {},
+    ));
   const pollMoonraker = async () => {
     await Promise.all(adapters.filter((a) => a instanceof MoonrakerAdapter).map(async (adapter) => {
-      try { setState(await adapter.read()); markConnected(adapter.config); }
-      catch (error) { setState({ id: adapter.config.id, name: adapter.config.name, type: 'moonraker', status: 'offline', message: error.message }); }
+      try {
+        const state = await adapter.read();
+        if (adapters.includes(adapter)) { setState(state); markConnected(adapter.config); }
+      } catch (error) {
+        if (adapters.includes(adapter)) setState({ id: adapter.config.id, name: adapter.config.name, type: 'moonraker', status: 'offline', message: error.message });
+      }
     }));
   };
   await pollMoonraker();
@@ -614,6 +651,7 @@ ipcMain.handle('settings:import', async () => {
   store.set('launchAtLogin', backup.launchAtLogin !== false);
   store.set('automaticUpdates', backup.automaticUpdates !== false);
   store.set('onboarded', printers.length > 0);
+  pendingSetupPrinterIds = new Set();
   enforceStorePermissions();
   syncLaunchAtLogin(app, store.get('launchAtLogin'));
   resizePet(store.get('scale'));
@@ -623,7 +661,9 @@ ipcMain.handle('settings:import', async () => {
 ipcMain.handle('settings:save', async (_event, settings) => {
   const printers = dedupePrinters(settings.printers);
   const existingIds = new Set(store.get('printers').map((printer) => printer.id));
-  const newPrinterIds = new Set(printers.filter((printer) => !existingIds.has(printer.id)).map((printer) => printer.id));
+  const nextIds = new Set(printers.map((printer) => printer.id));
+  pendingSetupPrinterIds = nextPendingSetupPrinters(pendingSetupPrinterIds, existingIds, nextIds);
+  const setupPrinterIds = new Set(pendingSetupPrinterIds);
   store.set('printers', preparePrintersForStorage(printers));
   store.set('scale', settings.scale);
   store.set('launchAtLogin', settings.launchAtLogin);
@@ -632,7 +672,7 @@ ipcMain.handle('settings:save', async (_event, settings) => {
   enforceStorePermissions();
   syncLaunchAtLogin(app, settings.launchAtLogin);
   resizePet(settings.scale);
-  await configureAdapters(newPrinterIds);
+  await configureAdapters(setupPrinterIds, { preserveUnchanged: true });
   return true;
 });
 ipcMain.handle('update:check', async () => {
