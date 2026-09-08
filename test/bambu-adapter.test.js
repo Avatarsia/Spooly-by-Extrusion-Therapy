@@ -129,7 +129,17 @@ test('does not fabricate zeroes from missing Bambu telemetry', () => {
     cooling_fan_speed: null,
   } });
   assert.equal(state.progress, null);
+  assert.equal(state.remainingMinutes, null);
   assert.equal(state.nozzleTemp, null);
   assert.equal(state.bedTemp, null);
   assert.deepEqual(state.fans, []);
+});
+
+test('maps printer-reported Bambu remaining time without estimating it', () => {
+  const state = adapter().toPrinterState({ print: {
+    gcode_state: 'RUNNING',
+    mc_percent: 42,
+    mc_remaining_time: 78,
+  } });
+  assert.equal(state.remainingMinutes, 78);
 });

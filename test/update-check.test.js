@@ -11,3 +11,8 @@ test('release versions compare numerically', () => {
   assert.equal(compareVersions('0.1.12', '0.1.12'), 0);
   assert.equal(compareVersions('0.1.9', '0.1.12'), -1);
 });
+
+test('unparseable release versions are not treated as current', () => {
+  assert.throws(() => compareVersions('latest', '0.1.15'), /Invalid release version/);
+  assert.equal(versionParts('latest'), null);
+});

@@ -138,6 +138,7 @@ class BambuAdapter {
       attention: stoppedEvent && !hasPrintError ? { type: 'stopped', message: 'Print stopped' } : null,
       filename: print.subtask_name || print.gcode_file || '',
       progress: numeric(print.mc_percent),
+      remainingMinutes: numeric(print.mc_remaining_time),
       nozzleTemp: activeNozzle?.current ?? numeric(print.nozzle_temper),
       nozzleTarget: activeNozzle?.target ?? numeric(print.nozzle_target_temper),
       bedTemp: packedBed?.current ?? numeric(print.bed_temper),

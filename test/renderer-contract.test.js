@@ -90,7 +90,7 @@ test('printer popup exposes proportional resizing and closes 1.5 seconds after m
   assert.match(bubble, /resizeHandle\.addEventListener\('pointerdown'/);
 });
 
-test('setup exposes a manual-only GitHub update check', () => {
+test('setup exposes weekly and manual GitHub update checks', () => {
   const main = source('src/main.js');
   const preload = source('src/preload.js');
   const html = source('src/renderer/settings.html');
@@ -98,8 +98,33 @@ test('setup exposes a manual-only GitHub update check', () => {
   assert.match(main, /ipcMain\.handle\('update:check'/);
   assert.match(preload, /checkForUpdates/);
   assert.match(html, /id="checkUpdates"/);
-  assert.match(html, /only contacts GitHub when you press the button/);
+  assert.match(html, /id="automaticUpdates"/);
+  assert.match(html, /once a week/);
   assert.match(settings, /#checkUpdates/);
+  assert.match(main, /scheduleAutomaticUpdateChecks/);
+  assert.match(main, /lastAutomaticUpdateCheck/);
+  assert.match(main, /lastNotifiedUpdateVersion/);
+  assert.match(main, /automaticUpdates: store\.get\('automaticUpdates'\)/);
+  assert.match(settings, /automaticUpdates\.checked = result\.settings\.automaticUpdates !== false/);
+});
+
+test('bubble shows only printer-reported remaining time', () => {
+  const script = source('src/renderer/bubble.js');
+  const bambu = source('src/adapters/bambu.js');
+  const html = source('src/renderer/bubble.html');
+  const main = source('src/main.js');
+  assert.match(bambu, /remainingMinutes: numeric\(print\.mc_remaining_time\)/);
+  assert.match(html, /\.\.\/status-label\.js/);
+  assert.match(script, /printerStatusLabel\(printer\)/);
+  assert.match(main, /printerStatusLabel\(printer\)\.length/);
+  assert.doesNotMatch(source('src/adapters/moonraker.js'), /remainingMinutes/);
+});
+
+test('duplicate scan results stay in the current printer card', () => {
+  const settings = source('src/renderer/settings.js');
+  const duplicateBody = settings.match(/function revealDuplicate[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(duplicateBody, /No new printer selected/);
+  assert.doesNotMatch(duplicateBody, /scrollIntoView/);
 });
 
 test('DMG icons fit inside the configured installer window', () => {

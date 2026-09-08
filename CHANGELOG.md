@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15
+
+- Added printer-reported time remaining beside print progress when that data is available.
+- Added an optional quiet weekly update check while keeping the manual update button.
+- Improved add-printer scanning so an already-added printer no longer pulls the setup view away from the new printer entry.
+
 ## 0.1.14
 
 - Fixed a white background appearing around Spooly at the smallest size on some standard-DPI displays.

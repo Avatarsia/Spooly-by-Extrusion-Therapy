@@ -1,18 +1,12 @@
 const bubble = document.querySelector('#bubble');
 const resizeHandle = document.querySelector('#resizeHandle');
+const { printerStatusLabel } = globalThis.SpoolyStatusLabel;
 let resizing = false;
 
 function escapeHtml(value = '') {
   const node = document.createElement('span');
   node.textContent = value;
   return node.innerHTML;
-}
-
-function label(printer) {
-  if (printer.attention?.type === 'stopped') return 'PRINT STOPPED';
-  const status = ({ filament_out: 'FILAMENT OUT', printing: 'PRINTING', paused: 'PAUSED', complete: 'COMPLETE', error: 'ERROR', idle: 'IDLE', offline: 'OFFLINE' })[printer.status] || printer.status;
-  const showProgress = ['printing', 'paused'].includes(printer.status) && hasNumericValue(printer.progress);
-  return showProgress ? `${status} · ${Math.round(Number(printer.progress))}%` : status;
 }
 
 function hasNumericValue(value) {
@@ -66,7 +60,7 @@ window.spooly.onBubbleUpdate(({ snapshot, side, layout }) => {
       ? `<span class="telemetry">${telemetryItems.join('')}</span>`
       : '';
     const statusKind = printer.attention?.type === 'stopped' ? 'stopped' : printer.status;
-    return `<div class="row"><strong>${escapeHtml(printer.name)}</strong><span class="status ${escapeHtml(statusKind)}">${escapeHtml(label(printer))}</span>
+    return `<div class="row"><strong>${escapeHtml(printer.name)}</strong><span class="status ${escapeHtml(statusKind)}">${escapeHtml(printerStatusLabel(printer))}</span>
       ${(printer.message || printer.attention?.message) ? `<span class="message">${escapeHtml(printer.message || printer.attention.message)}</span>` : ''}${progressBar(printer)}${telemetry}</div>`;
   }).join('');
 });

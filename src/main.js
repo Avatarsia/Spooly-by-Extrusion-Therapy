@@ -1,7 +1,7 @@
 const path = require('path');
 const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, powerMonitor, net, Notification } = require('electron');
 const Store = require('electron-store');
 const { aggregatePrinters } = require('./state');
 const { MoonrakerAdapter } = require('./adapters/moonraker');
@@ -20,6 +20,8 @@ const { clampScale, scaledSize, topRightResize } = require('./bubble-resize');
 const { syncLaunchAtLogin } = require('./login-item');
 const { migrateLegacyCredentials, preparePrintersForStorage } = require('./credentials');
 const { compareVersions } = require('./update-check');
+const { shouldNotifyForUpdate, shouldRunAutomaticUpdate } = require('./update-schedule');
+const { printerStatusLabel } = require('./status-label');
 
 const RELEASES_API = 'https://api.github.com/repos/rdcstout/Spooly-by-Extrusion-Therapy/releases/latest';
 const RELEASES_PAGE_PREFIX = 'https://github.com/rdcstout/Spooly-by-Extrusion-Therapy/releases/';
@@ -32,7 +34,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 const store = new Store({
-  defaults: { printers: [], scale: 1, bubbleScale: 1, onboarded: false, window: null, launchAtLogin: true },
+  defaults: { printers: [], scale: 1, bubbleScale: 1, onboarded: false, window: null, launchAtLogin: true, automaticUpdates: true, lastAutomaticUpdateCheck: 0, lastNotifiedUpdateVersion: '' },
 });
 
 function enforceStorePermissions() {
@@ -63,6 +65,7 @@ let bubbleNaturalSize = null;
 let bubbleResize = null;
 let bubbleResizeTimer = null;
 let bubbleResizePoint = null;
+let automaticUpdateTimer = null;
 const previewDevil = process.argv.includes('--dev') && process.argv.includes('--preview-devil');
 const previewPaused = process.argv.includes('--dev') && process.argv.includes('--preview-paused');
 const previewComplete = process.argv.includes('--dev') && process.argv.includes('--preview-complete');
@@ -152,7 +155,48 @@ function settingsPayload() {
     printers: runtimePrinters(),
     scale: store.get('scale'),
     launchAtLogin: store.get('launchAtLogin'),
+    automaticUpdates: store.get('automaticUpdates'),
   };
+}
+
+async function fetchLatestRelease() {
+  const response = await net.fetch(RELEASES_API, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (!response.ok) throw new Error(`GitHub returned ${response.status}.`);
+  const release = await response.json();
+  const current = app.getVersion();
+  const latest = String(release.tag_name || '').replace(/^v/i, '');
+  const releaseUrl = String(release.html_url || '');
+  return {
+    current,
+    latest,
+    updateAvailable: compareVersions(latest, current) > 0,
+    releaseUrl: releaseUrl.startsWith(RELEASES_PAGE_PREFIX) ? releaseUrl : `${RELEASES_PAGE_PREFIX}latest`,
+  };
+}
+
+async function runAutomaticUpdateCheck() {
+  if (!shouldRunAutomaticUpdate(store.get('automaticUpdates'), store.get('lastAutomaticUpdateCheck'))) return;
+  store.set('lastAutomaticUpdateCheck', Date.now());
+  try {
+    const result = await fetchLatestRelease();
+    if (!shouldNotifyForUpdate(store.get('automaticUpdates'), result, store.get('lastNotifiedUpdateVersion'))) return;
+    store.set('lastNotifiedUpdateVersion', result.latest);
+    if (!Notification.isSupported()) return;
+    const notice = new Notification({
+      title: 'Spooly update available',
+      body: `Version ${result.latest} is ready to download.`,
+    });
+    notice.on('click', () => shell.openExternal(result.releaseUrl));
+    notice.show();
+  } catch (_) {}
+}
+
+function scheduleAutomaticUpdateChecks() {
+  clearInterval(automaticUpdateTimer);
+  automaticUpdateTimer = setInterval(runAutomaticUpdateCheck, 60 * 60 * 1000);
+  setTimeout(runAutomaticUpdateCheck, 15000);
 }
 
 function snapshot() {
@@ -183,7 +227,6 @@ function positionBubble(current = snapshot()) {
   // Telemetry wraps by whole readings so every fan remains visible.
   const rowHeight = 94;
   const naturalHeight = Math.min(workArea.height - 12, Math.max(108, 42 + layout.rows * rowHeight));
-  const statusLabel = (status) => ({ filament_out: 'FILAMENT OUT' })[status] || String(status || '').toUpperCase();
   const numeric = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
   const telemetryLength = (printer) => {
     const showTargets = ['printing', 'paused'].includes(printer.status);
@@ -202,7 +245,7 @@ function positionBubble(current = snapshot()) {
     ].filter(Boolean).join(' · ').length;
   };
   const contentLength = current.printers.length ? Math.max(...current.printers.flatMap((printer) => [
-    String(printer.name || '').length + statusLabel(printer.status).length + 7,
+    String(printer.name || '').length + printerStatusLabel(printer).length + 2,
     telemetryLength(printer),
   ])) : 36;
   // Size for the complete telemetry line, including every reported fan. Only
@@ -499,6 +542,7 @@ app.whenReady().then(async () => {
   createPetWindow();
   createTray();
   await configureAdapters();
+  scheduleAutomaticUpdateChecks();
   if (!store.get('onboarded')) petWindow.webContents.once('did-finish-load', broadcast);
   powerMonitor.on('resume', () => {
     setTimeout(restorePetPlacement, 500);
@@ -516,7 +560,7 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {});
 app.on('activate', () => petWindow?.show());
-app.on('before-quit', () => { app.isQuitting = true; stopAdapters(); });
+app.on('before-quit', () => { app.isQuitting = true; stopAdapters(); clearInterval(automaticUpdateTimer); });
 
 ipcMain.handle('snapshot:get', () => snapshot());
 ipcMain.handle('bambu:scan', () => scanBambuPrinters());
@@ -536,6 +580,7 @@ ipcMain.handle('settings:export', async () => {
     printers: store.get('printers'),
     scale: store.get('scale'),
     launchAtLogin: store.get('launchAtLogin'),
+    automaticUpdates: store.get('automaticUpdates'),
   };
   await fs.writeFile(result.filePath, `${JSON.stringify(backup, null, 2)}\n`, { mode: 0o600 });
   await fs.chmod(result.filePath, 0o600);
@@ -560,6 +605,7 @@ ipcMain.handle('settings:import', async () => {
   store.set('printers', printers);
   store.set('scale', Math.max(.65, Math.min(1.1, Number(backup.scale) || 1)));
   store.set('launchAtLogin', backup.launchAtLogin !== false);
+  store.set('automaticUpdates', backup.automaticUpdates !== false);
   store.set('onboarded', printers.length > 0);
   enforceStorePermissions();
   syncLaunchAtLogin(app, store.get('launchAtLogin'));
@@ -574,6 +620,7 @@ ipcMain.handle('settings:save', async (_event, settings) => {
   store.set('printers', preparePrintersForStorage(printers));
   store.set('scale', settings.scale);
   store.set('launchAtLogin', settings.launchAtLogin);
+  store.set('automaticUpdates', settings.automaticUpdates !== false);
   store.set('onboarded', printers.length > 0);
   enforceStorePermissions();
   syncLaunchAtLogin(app, settings.launchAtLogin);
@@ -582,21 +629,7 @@ ipcMain.handle('settings:save', async (_event, settings) => {
   return true;
 });
 ipcMain.handle('update:check', async () => {
-  const response = await net.fetch(RELEASES_API, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (!response.ok) throw new Error(`GitHub returned ${response.status}.`);
-  const release = await response.json();
-  const current = app.getVersion();
-  const latest = String(release.tag_name || '').replace(/^v/i, '');
-  const updateAvailable = compareVersions(latest, current) > 0;
-  const releaseUrl = String(release.html_url || '');
-  return {
-    current,
-    latest,
-    updateAvailable,
-    releaseUrl: releaseUrl.startsWith(RELEASES_PAGE_PREFIX) ? releaseUrl : `${RELEASES_PAGE_PREFIX}latest`,
-  };
+  return fetchLatestRelease();
 });
 ipcMain.on('update:open-release', (_event, url) => {
   const releaseUrl = String(url || '');

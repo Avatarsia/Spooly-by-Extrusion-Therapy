@@ -3,6 +3,7 @@ const template = document.querySelector('#printerTemplate');
 const scale = document.querySelector('#scale');
 const scaleOut = document.querySelector('#scaleOut');
 const launch = document.querySelector('#launch');
+const automaticUpdates = document.querySelector('#automaticUpdates');
 const MIN_SCALE = .65;
 const MAX_SCALE = 1.1;
 
@@ -42,10 +43,7 @@ function existingCard(printer, excludingCard) {
 }
 
 function revealDuplicate(card, results, name) {
-  results.textContent = `Already added: ${name || cardValue(card).name || 'this printer'}`;
-  card.classList.add('duplicate');
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setTimeout(() => card.classList.remove('duplicate'), 2200);
+  results.textContent = `No new printer selected — ${name || cardValue(card).name || 'this printer'} is already added.`;
 }
 
 function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
@@ -195,6 +193,7 @@ document.querySelector('#importConfig').addEventListener('click', async () => {
     scale.value = scaleToSlider(result.settings.scale);
     scale.dispatchEvent(new Event('input'));
     launch.checked = result.settings.launchAtLogin;
+    automaticUpdates.checked = result.settings.automaticUpdates !== false;
     saved.textContent = 'Configuration restored.';
   } catch (error) { saved.textContent = error.message || 'Could not restore configuration.'; }
 });
@@ -206,12 +205,12 @@ scale.addEventListener('input', () => {
 document.querySelector('#save').addEventListener('click', async () => {
   const saved = document.querySelector('#saved');
   saved.textContent = 'Saved. Spooly is connecting…';
-  await window.spooly.saveSettings({ printers: readPrinters(), scale: sliderToScale(scale.value), launchAtLogin: launch.checked });
+  await window.spooly.saveSettings({ printers: readPrinters(), scale: sliderToScale(scale.value), launchAtLogin: launch.checked, automaticUpdates: automaticUpdates.checked });
   setTimeout(() => {
     if (saved.textContent === 'Saved. Spooly is connecting…') saved.textContent = '';
   }, 2500);
 });
-window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach(addPrinter); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
+window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach(addPrinter); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; automaticUpdates.checked = settings.automaticUpdates !== false; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
 window.spooly.onPrinterConnected(({ name }) => {
   document.querySelector('#saved').textContent = `${name} connected successfully.`;
   setTimeout(() => document.querySelector('#saved').textContent = '', 3500);

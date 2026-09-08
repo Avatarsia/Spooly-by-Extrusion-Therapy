@@ -34,12 +34,12 @@ Spooly is a small, always-on-top desktop pet that watches supported printers on 
 
 - Idle, printing, paused, filament-out, error, complete, and offline states
 - A priority system that makes attention states and completed jobs outrank ordinary printing
-- Print percentage and a status-colored progress bar when the printer reports progress
+- Print percentage, printer-reported time remaining, and a status-colored progress bar when available
 - Actual and target nozzle/bed temperatures while printing or paused; actual temperatures otherwise
 - Part, auxiliary, and chamber fan states when the printer reports them
 - Animated mascot reactions and automatic attention bubbles
 - Local-network discovery for Bambu Lab and Moonraker-compatible printers
-- Multiple-printer monitoring, duplicate detection, configuration backup/restore, adjustable mascot size, and launch at login
+- Multiple-printer monitoring, duplicate detection, configuration backup/restore, adjustable mascot size, launch at login, and optional weekly update checks
 - Read-only monitoring: Spooly does not start, pause, stop, or modify prints
 
 ## Compatibility
