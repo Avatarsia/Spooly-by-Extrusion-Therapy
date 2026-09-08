@@ -1,6 +1,5 @@
 const { MoonrakerAdapter } = require('./adapters/moonraker');
 const { BambuAdapter } = require('./adapters/bambu');
-const { DuetAdapter } = require('./adapters/duet');
 const { RepetierServerAdapter } = require('./adapters/repetierserver');
 
 // Single lookup point mapping a printer's `type` to its adapter class and
@@ -11,7 +10,6 @@ const { RepetierServerAdapter } = require('./adapters/repetierserver');
 const ADAPTER_REGISTRY = {
   moonraker: { AdapterClass: MoonrakerAdapter, mode: 'poll' },
   bambu: { AdapterClass: BambuAdapter, mode: 'push' },
-  duet: { AdapterClass: DuetAdapter, mode: 'poll' },
   repetierserver: { AdapterClass: RepetierServerAdapter, mode: 'poll' },
 };
 

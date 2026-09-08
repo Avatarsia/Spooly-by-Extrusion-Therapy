@@ -7,7 +7,7 @@ const automaticUpdates = document.querySelector('#automaticUpdates');
 const existingPrinterIds = new Set();
 const MIN_SCALE = .65;
 const MAX_SCALE = 1.1;
-const PORT_DEFAULTS = { moonraker: 7125, duet: 80, repetierserver: 3344 };
+const PORT_DEFAULTS = { moonraker: 7125, repetierserver: 3344 };
 
 function sliderToScale(value) {
   return MIN_SCALE + ((Number(value) - 1) / 99) * (MAX_SCALE - MIN_SCALE);
@@ -26,9 +26,6 @@ function printerKey(printer = {}) {
   if (printer.type === 'bambu') {
     const serial = String(printer.serial || '').trim().toUpperCase();
     return serial ? `bambu:serial:${serial}` : `bambu:host:${normalizeHost(printer.host)}`;
-  }
-  if (printer.type === 'duet') {
-    return `duet:${normalizeHost(printer.host)}:${Number(printer.port) || 80}`;
   }
   if (printer.type === 'repetierserver') {
     return `repetierserver:${normalizeHost(printer.host)}:${Number(printer.port) || 3344}:${String(printer.slug || '').trim().toLowerCase()}`;
@@ -93,7 +90,6 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
   const updateType = () => {
     const type = card.querySelector('[data-field="type"]').value;
     card.classList.toggle('is-bambu', type === 'bambu');
-    card.classList.toggle('is-duet', type === 'duet');
     card.classList.toggle('is-repetierserver', type === 'repetierserver');
     applyPortDefault(card);
   };
@@ -236,6 +232,15 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
   });
 }
 
+// A RepetierServer connection is addressed by its printer slug, so a card
+// without one cannot be saved. Flag the card instead of silently dropping it.
+function invalidPrinterCard() {
+  return [...list.children].find((card) => {
+    const printer = cardValue(card);
+    return printer.type === 'repetierserver' && printer.name && printer.host && !String(printer.slug || '').trim();
+  }) || null;
+}
+
 function readPrinters() {
   const seen = new Set();
   return [...list.children].map(cardValue).filter((printer) => {
@@ -301,6 +306,13 @@ scale.addEventListener('input', () => {
 });
 document.querySelector('#save').addEventListener('click', async () => {
   const saved = document.querySelector('#saved');
+  const invalidCard = invalidPrinterCard();
+  if (invalidCard) {
+    saved.textContent = 'Pick a RepetierServer printer before saving.';
+    const slugInput = invalidCard.querySelector('[data-field="slug"]');
+    slugInput.focus();
+    return;
+  }
   const printers = readPrinters();
   const newPrinterCount = printers.filter((printer) => !existingPrinterIds.has(printer.id)).length;
   const saveMessage = newPrinterCount > 0
