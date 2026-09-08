@@ -127,6 +127,23 @@ test('duplicate scan results stay in the current printer card', () => {
   assert.doesNotMatch(duplicateBody, /scrollIntoView/);
 });
 
+test('setup presents persistent staged Bambu connection failures', () => {
+  const main = source('src/main.js');
+  const preload = source('src/preload.js');
+  const html = source('src/renderer/settings.html');
+  const settings = source('src/renderer/settings.js');
+  const bambu = source('src/adapters/bambu.js');
+  assert.match(main, /printerConnectionStatuses/);
+  assert.match(main, /printer:connection-status/);
+  assert.match(preload, /onPrinterConnectionStatus/);
+  assert.match(html, /class="bambu connection-status" role="status" aria-live="polite"/);
+  assert.match(settings, /function showConnectionStatus/);
+  assert.match(settings, /BAMBU-DISCOVERY-01/);
+  assert.match(bambu, /classifyConnectionError/);
+  assert.match(bambu, /status\('noTelemetry'\)/);
+  assert.match(bambu, /status\('malformedTelemetry'\)/);
+});
+
 test('DMG icons fit inside the configured installer window', () => {
   const packageJson = require('../package.json');
   assert.deepEqual(packageJson.build.dmg.contents, [

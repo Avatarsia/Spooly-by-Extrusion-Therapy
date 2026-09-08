@@ -46,6 +46,21 @@ function revealDuplicate(card, results, name) {
   results.textContent = `No new printer selected — ${name || cardValue(card).name || 'this printer'} is already added.`;
 }
 
+function showConnectionStatus(value) {
+  const card = [...list.children].find((entry) => entry.dataset.id === value?.id);
+  if (!card) return;
+  const output = card.querySelector('.connection-status');
+  output.replaceChildren();
+  output.dataset.phase = value.phase || '';
+  if (value.code) {
+    const code = document.createElement('span');
+    code.className = 'connection-code';
+    code.textContent = value.code;
+    output.append(code);
+  }
+  output.append(document.createTextNode(value.message || ''));
+}
+
 function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
   const card = template.content.firstElementChild.cloneNode(true);
   card.dataset.id = data.id || crypto.randomUUID();
@@ -119,7 +134,10 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
         choice.addEventListener('click', () => selectPrinter(printer));
         results.append(choice);
       });
-      else button.textContent = 'No printers found — try manual entry';
+      else {
+        button.textContent = 'Scan local network';
+        results.textContent = 'BAMBU-DISCOVERY-01 — No Bambu printers answered the scan. Try manual entry.';
+      }
     } catch (_) {
       button.textContent = 'Scan failed — try manual entry';
     } finally {
@@ -210,8 +228,9 @@ document.querySelector('#save').addEventListener('click', async () => {
     if (saved.textContent === 'Saved. Spooly is connecting…') saved.textContent = '';
   }, 2500);
 });
-window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach(addPrinter); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; automaticUpdates.checked = settings.automaticUpdates !== false; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
+window.spooly.getSettings().then((settings) => { document.querySelector('#version').textContent = `Version ${settings.version}`; settings.printers.forEach(addPrinter); (settings.connectionStatuses || []).forEach(showConnectionStatus); scale.value = scaleToSlider(settings.scale); scale.dispatchEvent(new Event('input')); launch.checked = settings.launchAtLogin; automaticUpdates.checked = settings.automaticUpdates !== false; if (!settings.printers.length) addPrinter({ type: 'moonraker', port: 7125 }); });
 window.spooly.onPrinterConnected(({ name }) => {
   document.querySelector('#saved').textContent = `${name} connected successfully.`;
   setTimeout(() => document.querySelector('#saved').textContent = '', 3500);
 });
+window.spooly.onPrinterConnectionStatus(showConnectionStatus);

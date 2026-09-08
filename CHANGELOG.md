@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.16
+
+- Added persistent Bambu connection-status messages in Setup for discovery, network, secure-connection, access-code, subscription, and printer-data failures.
+- Changed Bambu setup success so it appears only after Spooly receives live printer data.
+
 ## 0.1.15
 
 - Added printer-reported time remaining beside print progress when that data is available.

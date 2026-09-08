@@ -28,6 +28,7 @@ const api = {
   onBubbleUpdate: (callback) => ipcRenderer.on('bubble:update', (_event, value) => callback(value)),
   onEasterEgg: (callback) => ipcRenderer.on('easter-egg', (_event, value) => callback(value)),
   onPrinterConnected: (callback) => ipcRenderer.on('printer:connected', (_event, value) => callback(value)),
+  onPrinterConnectionStatus: (callback) => ipcRenderer.on('printer:connection-status', (_event, value) => callback(value)),
   onSnapshot: (callback) => ipcRenderer.on('snapshot', (_event, value) => callback(value)),
 };
 

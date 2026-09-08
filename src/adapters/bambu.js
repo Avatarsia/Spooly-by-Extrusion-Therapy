@@ -1,8 +1,11 @@
 const mqtt = require('mqtt');
+const { classifyConnectionError, status } = require('../bambu-connection-status');
 
 class BambuAdapter {
-  constructor(config) {
+  constructor(config, options = {}) {
     this.config = config;
+    this.connectClient = options.connectClient || mqtt.connect;
+    this.telemetryTimeoutMs = Number(options.telemetryTimeoutMs) || 12000;
     this.latest = null;
     this.latestPrint = {};
     this.client = null;
@@ -10,33 +13,85 @@ class BambuAdapter {
     this.completionDismissed = false;
     this.completionTimer = null;
     this.completionHoldMs = Number(config.completionHoldMs) || 7500;
+    this.telemetryTimer = null;
+    this.hasAuthenticated = false;
+    this.hasReceivedTelemetry = false;
+    this.lastConnectionCode = null;
   }
 
-  connect(onUpdate, onConnected = () => {}) {
-    if (this.client) return;
-    this.client = mqtt.connect(`mqtts://${this.config.host}:8883`, {
-      username: 'bblp',
-      password: this.config.accessCode,
-      rejectUnauthorized: false,
-      connectTimeout: 4000,
-      reconnectPeriod: 5000,
+  connectionStatus(callback, value) {
+    if (value.code && value.code === this.lastConnectionCode) return;
+    this.lastConnectionCode = value.code || null;
+    callback({
+      id: this.config.id,
+      name: this.config.name,
+      type: 'bambu',
+      ...value,
     });
-    this.client.on('connect', () => {
-      if (!this.hasConnected) {
-        this.hasConnected = true;
-        onConnected(this.config);
+  }
+
+  startTelemetryTimeout(onConnectionStatus) {
+    clearTimeout(this.telemetryTimer);
+    this.telemetryTimer = setTimeout(() => {
+      if (!this.hasReceivedTelemetry && !this.lastConnectionCode) {
+        this.connectionStatus(onConnectionStatus, status('noTelemetry'));
       }
-      this.client.subscribe(`device/${this.config.serial}/report`);
-      this.client.publish(`device/${this.config.serial}/request`, JSON.stringify({
-        pushing: { sequence_id: '0', command: 'pushall' },
-      }));
+    }, this.telemetryTimeoutMs);
+  }
+
+  connect(onUpdate, onConnected = () => {}, onConnectionStatus = () => {}) {
+    if (this.client) return;
+    this.connectionStatus(onConnectionStatus, status('connecting'));
+    try {
+      this.client = this.connectClient(`mqtts://${this.config.host}:8883`, {
+        username: 'bblp',
+        password: this.config.accessCode,
+        rejectUnauthorized: false,
+        connectTimeout: 4000,
+        reconnectPeriod: 5000,
+      });
+    } catch (error) {
+      this.connectionStatus(onConnectionStatus, classifyConnectionError(error));
+      return;
+    }
+    this.client.on('connect', () => {
+      this.hasAuthenticated = true;
+      this.connectionStatus(onConnectionStatus, status('authenticated'));
+      this.client.subscribe(`device/${this.config.serial}/report`, (error, granted = []) => {
+        if (error || granted.some((entry) => Number(entry?.qos) === 128)) {
+          this.connectionStatus(onConnectionStatus, status('subscription'));
+          return;
+        }
+        this.startTelemetryTimeout(onConnectionStatus);
+        this.client.publish(`device/${this.config.serial}/request`, JSON.stringify({
+          pushing: { sequence_id: '0', command: 'pushall' },
+        }));
+      });
     });
     this.client.on('message', (_topic, payload) => {
       try {
         this.processReport(JSON.parse(payload.toString()), onUpdate);
-      } catch (_) {}
+      } catch (_) {
+        this.connectionStatus(onConnectionStatus, status('malformedTelemetry'));
+        return;
+      }
+      if (!this.hasReceivedTelemetry) {
+        this.hasReceivedTelemetry = true;
+        this.hasConnected = true;
+        clearTimeout(this.telemetryTimer);
+        this.telemetryTimer = null;
+        this.connectionStatus(onConnectionStatus, status('connected'));
+        onConnected(this.config);
+      }
     });
-    this.client.on('error', () => {});
+    this.client.on('error', (error) => {
+      if (!this.hasReceivedTelemetry) this.connectionStatus(onConnectionStatus, classifyConnectionError(error));
+    });
+    this.client.on('close', () => {
+      if (!this.hasReceivedTelemetry && !this.lastConnectionCode) {
+        this.connectionStatus(onConnectionStatus, status(this.hasAuthenticated ? 'disconnected' : 'network'));
+      }
+    });
   }
 
   processReport(report, onUpdate = () => {}) {
@@ -153,10 +208,15 @@ class BambuAdapter {
 
   disconnect() {
     clearTimeout(this.completionTimer);
+    clearTimeout(this.telemetryTimer);
     this.completionTimer = null;
+    this.telemetryTimer = null;
     this.client?.end(true);
     this.client = null;
     this.hasConnected = false;
+    this.hasAuthenticated = false;
+    this.hasReceivedTelemetry = false;
+    this.lastConnectionCode = null;
     this.latestPrint = {};
     this.hasObservedActiveJob = false;
     this.completionDismissed = false;

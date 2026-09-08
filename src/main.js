@@ -54,6 +54,7 @@ let tray;
 let pollTimer;
 let adapters = [];
 let printerStates = [];
+let printerConnectionStatuses = new Map();
 let acknowledgedKey = null;
 let simulatedPrinters = null;
 let petDrag = null;
@@ -156,6 +157,7 @@ function settingsPayload() {
     scale: store.get('scale'),
     launchAtLogin: store.get('launchAtLogin'),
     automaticUpdates: store.get('automaticUpdates'),
+    connectionStatuses: [...printerConnectionStatuses.values()],
   };
 }
 
@@ -505,6 +507,7 @@ function stopAdapters() {
 async function configureAdapters(newPrinterIds = new Set()) {
   stopAdapters();
   const configs = runtimePrinters();
+  printerConnectionStatuses = new Map();
   printerStates = configs.map((p) => ({ id: p.id, name: p.name, type: p.type, status: 'offline', message: '' }));
   const setState = (state) => {
     const index = printerStates.findIndex((p) => p.id === state.id);
@@ -516,6 +519,10 @@ async function configureAdapters(newPrinterIds = new Set()) {
     if (isNewAttention(previous, state)) showBubble(8000);
   };
   const connectedIds = new Set();
+  const reportConnectionStatus = (value) => {
+    printerConnectionStatuses.set(value.id, value);
+    settingsWindow?.webContents.send('printer:connection-status', value);
+  };
   const markConnected = (config) => {
     if (connectedIds.has(config.id)) return;
     connectedIds.add(config.id);
@@ -525,7 +532,7 @@ async function configureAdapters(newPrinterIds = new Set()) {
     }
   };
   adapters = configs.map((config) => config.type === 'bambu' ? new BambuAdapter(config) : new MoonrakerAdapter(config));
-  adapters.filter((a) => a instanceof BambuAdapter).forEach((a) => a.connect(setState, markConnected));
+  adapters.filter((a) => a instanceof BambuAdapter).forEach((a) => a.connect(setState, markConnected, reportConnectionStatus));
   const pollMoonraker = async () => {
     await Promise.all(adapters.filter((a) => a instanceof MoonrakerAdapter).map(async (adapter) => {
       try { setState(await adapter.read()); markConnected(adapter.config); }

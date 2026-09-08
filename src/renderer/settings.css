@@ -33,6 +33,13 @@ button:disabled { cursor: default; opacity: .55; }
 .scan-results { grid-column: 1 / -1; gap: 6px; }
 .scan-results:empty { display: none !important; }
 .scan-results button { text-align: left; }
+.connection-status { grid-column: 1 / -1; padding: 9px 10px; border-radius: 7px; font-size: 12px; line-height: 1.4; }
+.connection-status:empty { display: none !important; }
+.printer.is-bambu .connection-status[data-phase="connecting"],
+.printer.is-bambu .connection-status[data-phase="authenticated"] { display: block; color: #d7e5e7; background: #253034; }
+.printer.is-bambu .connection-status[data-phase="connected"] { display: block; color: #8cf0b9; background: #173526; }
+.printer.is-bambu .connection-status[data-phase="failed"] { display: block; color: #ffb1b9; background: #402126; border: 1px solid #71323b; }
+.connection-code { display: block; margin-bottom: 3px; color: #fff; font-weight: 800; letter-spacing: .03em; }
 .range { grid-template-columns: auto 1fr auto; align-items: center; margin-top: 12px; }
 .check { display: flex; align-items: center; margin-top: 12px; }
 .check input { width: auto; }
