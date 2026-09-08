@@ -49,6 +49,9 @@ Spooly is a small, always-on-top desktop pet that watches supported printers on 
 | **Bambu local MQTT** | X1 Carbon, H2S | Local discovery, status, progress, temperatures, and reported fans. An access code and serial number are required. |
 | **Klipper / Moonraker** | Snapmaker U1 | Local discovery and monitoring through Moonraker's HTTP API. |
 | **Repetier-Server** | Reported working | Monitoring through Repetier-Server's local HTTP API. A server API key and the printer's slug are required; press **Fetch printers** in Setup to list the slugs the server exposes. |
+| **Duet / RepRapFirmware** | None yet - not hardware-validated | Monitoring through RepRapFirmware's object-model HTTP API (`/rr_model`) on a standalone Duet board. Implemented against the published API only; see the note below. |
+
+> **Duet / RepRapFirmware is not yet hardware-validated.** The adapter is written against RepRapFirmware's published object-model API and covered by unit tests, but it has not been run against a physical Duet board. Treat it as unverified until someone confirms it on real hardware - a [printer compatibility report](../../issues/new?template=printer_compatibility.yml) from a Duet owner is what this needs.
 
 > **Snapmaker U1 with Paxx12 firmware:** If Spooly reports `Moonraker returned 401`, Moonraker's **Require Login** option is enabled. The current Spooly release does not yet support authenticated Moonraker connections. Open `http://<printer-ip>/firmware-config/` and disable **Require Login** to connect. Optional Moonraker API-key support is planned for a future update.
 

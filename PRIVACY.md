@@ -9,6 +9,7 @@ Spooly contacts only:
 - Bambu printers configured or discovered on the local network, using local MQTT over TLS on port 8883.
 - Moonraker-compatible printers configured or discovered on the local network, using the Moonraker HTTP API (normally port 7125).
 - Repetier-Server hosts configured on the local network, using the Repetier-Server HTTP API (normally port 3344). The server API key is sent to that host in an `X-Api-Key` request header and is not sent anywhere else.
+- Duet / RepRapFirmware boards configured on the local network, using the RepRapFirmware object-model HTTP API (normally port 80). No credentials are sent.
 - GitHub's public Releases API when the user checks manually or when the optional weekly update check is due. The request checks only the published Spooly version and does not include printer configuration.
 - `extrusiontherapy.com` only when the user clicks the Extrusion Therapy link in Setup; this opens the system browser.
 

@@ -7,7 +7,7 @@ const automaticUpdates = document.querySelector('#automaticUpdates');
 const existingPrinterIds = new Set();
 const MIN_SCALE = .65;
 const MAX_SCALE = 1.1;
-const PORT_DEFAULTS = { moonraker: 7125, repetierserver: 3344 };
+const PORT_DEFAULTS = { moonraker: 7125, repetierserver: 3344, duet: 80 };
 
 function sliderToScale(value) {
   return MIN_SCALE + ((Number(value) - 1) / 99) * (MAX_SCALE - MIN_SCALE);
@@ -26,6 +26,9 @@ function printerKey(printer = {}) {
   if (printer.type === 'bambu') {
     const serial = String(printer.serial || '').trim().toUpperCase();
     return serial ? `bambu:serial:${serial}` : `bambu:host:${normalizeHost(printer.host)}`;
+  }
+  if (printer.type === 'duet') {
+    return `duet:${normalizeHost(printer.host)}:${Number(printer.port) || 80}`;
   }
   if (printer.type === 'repetierserver') {
     return `repetierserver:${normalizeHost(printer.host)}:${Number(printer.port) || 3344}:${String(printer.slug || '').trim().toLowerCase()}`;
@@ -91,6 +94,7 @@ function addPrinter(data = {}, { prepend = false, focus = false } = {}) {
     const type = card.querySelector('[data-field="type"]').value;
     card.classList.toggle('is-bambu', type === 'bambu');
     card.classList.toggle('is-repetierserver', type === 'repetierserver');
+    card.classList.toggle('is-duet', type === 'duet');
     applyPortDefault(card);
   };
   card.querySelector('[data-field="type"]').addEventListener('change', updateType);

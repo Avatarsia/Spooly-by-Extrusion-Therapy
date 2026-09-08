@@ -45,3 +45,17 @@ test('identifies duplicate RepetierServer printers by normalized host, port, and
     canonicalPrinterKey({ type: 'repetierserver', host: 'repetier.local', port: 3344, slug: 'printer1' }),
   );
 });
+
+test('treats Duet printers on different hosts as distinct', () => {
+  assert.notEqual(
+    canonicalPrinterKey({ type: 'duet', host: '192.168.1.20', port: 80 }),
+    canonicalPrinterKey({ type: 'duet', host: '192.168.1.21', port: 80 }),
+  );
+});
+
+test('identifies duplicate Duet printers by normalized host and port', () => {
+  assert.equal(
+    canonicalPrinterKey({ type: 'duet', host: 'http://Voron2.local/', port: 80 }),
+    canonicalPrinterKey({ type: 'duet', host: 'voron2.local', port: 80 }),
+  );
+});
